@@ -1,13 +1,22 @@
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel, EmailStr
+
+UserRole = Literal["owner", "editor", "viewer"]
 
 
 # ── User ──────────────────────────────────────────────────────────────────────
 
+class UserSignup(BaseModel):
+    email: EmailStr
+    password: str
+    role: UserRole = "viewer"
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     hashed_password: str
-    role: str = "user"
+    role: UserRole = "viewer"
 
 
 class UserRead(BaseModel):
@@ -17,6 +26,22 @@ class UserRead(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Auth / Token ──────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    user_id: int | None = None
 
 
 # ── Project ───────────────────────────────────────────────────────────────────

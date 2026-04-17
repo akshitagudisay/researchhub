@@ -10,7 +10,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(String, default="user", nullable=False)
+    role = Column(String, default="viewer", nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     projects = relationship("Project", back_populates="owner")
