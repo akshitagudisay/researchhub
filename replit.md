@@ -1,6 +1,6 @@
 # Project Overview
 
-A React + TypeScript frontend application built with Vite, Tailwind CSS, and shadcn/ui components. Originally created in Lovable and migrated to Replit.
+A full-stack application with a React + TypeScript frontend and a FastAPI Python backend. Originally created in Lovable and migrated to Replit.
 
 ## Stack
 
@@ -22,7 +22,39 @@ The app runs via the "Start application" workflow using `npm run dev`, which sta
 - `src/` — All application source code
 - `public/` — Static assets
 
+## Backend
+
+- **Framework**: FastAPI (Python 3.11)
+- **Server**: Uvicorn with `--reload` for development
+- **Port**: 8000
+- Entry point: `backend/app/main.py`
+- Dependencies listed in `backend/requirements.txt`
+
+### Backend structure
+
+```
+backend/
+  app/
+    main.py       # FastAPI app, routes, CORS config
+    database.py   # Database setup (placeholder)
+  requirements.txt
+```
+
+### Running the backend independently
+
+From the project root:
+```bash
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Or install dependencies first if starting fresh:
+```bash
+pip install -r backend/requirements.txt
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
 ## Notes
 
 - The `lovable-tagger` devDependency has been removed from the Vite plugin pipeline (it was Lovable-specific tooling)
-- Deployment targets static hosting; build output goes to `dist/`
+- Frontend runs on port 5000, backend on port 8000
+- CORS is currently open to all origins (`*`) — restrict in production
