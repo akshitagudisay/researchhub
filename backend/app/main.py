@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .database import engine, Base
+from . import models  # noqa: F401 — ensures all models are registered
+
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI()
 
 app.add_middleware(

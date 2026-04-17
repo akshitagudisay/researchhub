@@ -1,2 +1,4 @@
 fastapi==0.115.6
 uvicorn==0.32.1
+sqlalchemy==2.0.36
+email-validator==2.2.0
