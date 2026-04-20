@@ -1,4 +1,6 @@
-const BASE = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:8000";
+// All requests go through Vite's /api proxy → http://localhost:8000
+// This avoids cross-origin issues when running behind the Replit proxy.
+const BASE = "/api";
 
 export interface ApiUser {
   id: number;
@@ -47,7 +49,11 @@ function getToken(): string | null {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${BASE}${path}`, {
+  const url = `${BASE}${path}`;
+
+  console.log(`[API] ${options.method ?? "GET"} ${url}`);
+
+  const res = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -55,24 +61,36 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...(options.headers ?? {}),
     },
   });
+
+  console.log(`[API] ${options.method ?? "GET"} ${url} → ${res.status}`);
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    console.error(`[API] Error response:`, err);
     throw new Error(err.detail ?? "Request failed");
   }
+
   if (res.status === 204) return undefined as T;
   return res.json();
 }
 
 export const api = {
-  // ── Auth ────────────────────────────────────────────────────────────────────
-  signup: (body: { email: string; password: string; role?: string }) =>
-    request<ApiUser>("/auth/signup", { method: "POST", body: JSON.stringify(body) }),
+  // ── Auth ─────────────────────────────────────────────────────────────────────
+  signup: (body: { email: string; password: string; role?: string }) => {
+    console.log("[API] signup →", body.email, "role:", body.role ?? "owner");
+    return request<ApiUser>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ role: "owner", ...body }),
+    });
+  },
 
-  login: (body: { email: string; password: string }) =>
-    request<{ access_token: string; token_type: string }>("/auth/login", {
+  login: (body: { email: string; password: string }) => {
+    console.log("[API] login →", body.email);
+    return request<{ access_token: string; token_type: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify(body),
-    }),
+    });
+  },
 
   getMe: () => request<ApiUser>("/users/me"),
 
