@@ -1,26 +1,36 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/auth-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { FlaskConical } from 'lucide-react';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { FlaskConical } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; password?: string; api?: string }>({});
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: typeof errors = {};
-    if (!email.includes('@')) errs.email = 'Enter a valid email';
-    if (password.length < 6) errs.password = 'Password must be at least 6 characters';
+    if (!email.includes("@")) errs.email = "Enter a valid email";
+    if (password.length < 6) errs.password = "Password must be at least 6 characters";
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    login(email, password);
-    navigate('/dashboard');
+
+    setLoading(true);
+    setErrors({});
+    try {
+      await login(email, password);
+      navigate("/dashboard");
+    } catch (err: unknown) {
+      setErrors({ api: err instanceof Error ? err.message : "Login failed" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -35,21 +45,40 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {errors.api && (
+            <p className="text-sm text-destructive text-center bg-destructive/10 rounded-lg px-3 py-2">{errors.api}</p>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="you@university.edu" value={email} onChange={e => setEmail(e.target.value)} />
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@university.edu"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              data-testid="input-email"
+            />
             {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              data-testid="input-password"
+            />
             {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
           </div>
-          <Button type="submit" className="w-full">Sign in</Button>
+          <Button type="submit" className="w-full" disabled={loading} data-testid="button-signin">
+            {loading ? "Signing in…" : "Sign in"}
+          </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
+          Don't have an account?{" "}
           <Link to="/signup" className="text-primary hover:underline font-medium">Sign up</Link>
         </p>
       </div>

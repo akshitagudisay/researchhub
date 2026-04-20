@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 from pydantic import BaseModel, EmailStr
 
 UserRole = Literal["owner", "editor", "viewer"]
@@ -48,7 +48,6 @@ class TokenData(BaseModel):
 
 class ProjectCreate(BaseModel):
     title: str
-    owner_id: int
 
 
 class ProjectRead(BaseModel):
@@ -62,9 +61,8 @@ class ProjectRead(BaseModel):
 
 # ── Manuscript ────────────────────────────────────────────────────────────────
 
-class ManuscriptCreate(BaseModel):
+class ManuscriptSave(BaseModel):
     content: str
-    project_id: int
 
 
 class ManuscriptRead(BaseModel):
@@ -80,12 +78,17 @@ class ManuscriptRead(BaseModel):
 
 class DatasetCreate(BaseModel):
     name: str
-    project_id: int
+    description: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[str] = None
 
 
 class DatasetRead(BaseModel):
     id: int
     name: str
+    description: Optional[str]
+    file_name: Optional[str]
+    file_size: Optional[str]
     project_id: int
     created_at: datetime
 
@@ -96,12 +99,17 @@ class DatasetRead(BaseModel):
 
 class ExperimentCreate(BaseModel):
     name: str
-    project_id: int
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    attachments: Optional[str] = None
 
 
 class ExperimentRead(BaseModel):
     id: int
     name: str
+    description: Optional[str]
+    notes: Optional[str]
+    attachments: Optional[str]
     project_id: int
     created_at: datetime
 

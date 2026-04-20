@@ -1,36 +1,82 @@
-import { useState } from 'react';
-import { defaultManuscript, mockVersions, type ManuscriptContent, type ManuscriptVersion } from '@/lib/mock-data';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Save, History, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Save, History, ChevronRight } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface ManuscriptContent {
+  abstract: string;
+  introduction: string;
+  methodology: string;
+  results: string;
+}
+
+const EMPTY: ManuscriptContent = { abstract: "", introduction: "", methodology: "", results: "" };
 
 const sections: { key: keyof ManuscriptContent; label: string }[] = [
-  { key: 'abstract', label: 'Abstract' },
-  { key: 'introduction', label: 'Introduction' },
-  { key: 'methodology', label: 'Methodology' },
-  { key: 'results', label: 'Results' },
+  { key: "abstract", label: "Abstract" },
+  { key: "introduction", label: "Introduction" },
+  { key: "methodology", label: "Methodology" },
+  { key: "results", label: "Results" },
 ];
 
-export default function ManuscriptEditor() {
-  const [content, setContent] = useState<ManuscriptContent>(defaultManuscript);
-  const [versions, setVersions] = useState<ManuscriptVersion[]>(mockVersions);
+interface VersionEntry {
+  timestamp: string;
+  label: string;
+  content: ManuscriptContent;
+}
+
+export default function ManuscriptEditor({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [content, setContent] = useState<ManuscriptContent>(EMPTY);
+  const [versions, setVersions] = useState<VersionEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeSection, setActiveSection] = useState<keyof ManuscriptContent>('abstract');
+  const [activeSection, setActiveSection] = useState<keyof ManuscriptContent>("abstract");
 
-  const handleSave = () => {
-    const v: ManuscriptVersion = {
-      id: `v${versions.length + 1}`,
-      timestamp: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      label: 'Manual save',
-      content: { ...content },
-    };
-    setVersions([v, ...versions]);
-  };
+  const { data: manuscript, isLoading } = useQuery({
+    queryKey: ["/projects", projectId, "manuscript"],
+    queryFn: () => api.getManuscript(projectId),
+    enabled: !!projectId,
+  });
 
-  const loadVersion = (v: ManuscriptVersion) => {
-    setContent({ ...v.content });
-    setShowHistory(false);
-  };
+  useEffect(() => {
+    if (manuscript?.content) {
+      try {
+        setContent(JSON.parse(manuscript.content));
+      } catch {
+        setContent(EMPTY);
+      }
+    }
+  }, [manuscript]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.saveManuscript(projectId, JSON.stringify(content)),
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "manuscript"] });
+      const entry: VersionEntry = {
+        timestamp: new Date(saved.created_at).toLocaleString("en-US", {
+          month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
+        }),
+        label: "Manual save",
+        content: { ...content },
+      };
+      setVersions(prev => [entry, ...prev]);
+      toast({ title: "Saved", description: "Manuscript saved successfully." });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full">
@@ -43,9 +89,10 @@ export default function ManuscriptEditor() {
               onClick={() => setActiveSection(s.key)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 activeSection === s.key
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
+              data-testid={`tab-section-${s.key}`}
             >
               {s.label}
             </button>
@@ -54,8 +101,8 @@ export default function ManuscriptEditor() {
           <Button variant="outline" size="sm" onClick={() => setShowHistory(!showHistory)}>
             <History className="w-3.5 h-3.5 mr-1.5" /> History
           </Button>
-          <Button size="sm" onClick={handleSave}>
-            <Save className="w-3.5 h-3.5 mr-1.5" /> Save Version
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} data-testid="button-save-manuscript">
+            <Save className="w-3.5 h-3.5 mr-1.5" /> {saveMutation.isPending ? "Saving…" : "Save Version"}
           </Button>
         </div>
 
@@ -66,7 +113,8 @@ export default function ManuscriptEditor() {
             value={content[activeSection]}
             onChange={e => setContent({ ...content, [activeSection]: e.target.value })}
             className="min-h-[300px] resize-none text-sm leading-relaxed border-none shadow-none focus-visible:ring-0 p-0 bg-transparent"
-            placeholder={`Write your ${activeSection} here...`}
+            placeholder={`Write your ${activeSection} here…`}
+            data-testid={`textarea-${activeSection}`}
           />
         </div>
       </div>
@@ -75,22 +123,26 @@ export default function ManuscriptEditor() {
       {showHistory && (
         <div className="w-72 border-l bg-card p-4 overflow-auto">
           <h3 className="font-display font-semibold text-foreground mb-4">Version History</h3>
-          <div className="space-y-2">
-            {versions.map(v => (
-              <button
-                key={v.id}
-                onClick={() => loadVersion(v)}
-                className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-primary">{v.id.toUpperCase()}</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <p className="text-sm font-medium text-foreground mt-1">{v.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{v.timestamp}</p>
-              </button>
-            ))}
-          </div>
+          {versions.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No saved versions yet. Save to create one.</p>
+          ) : (
+            <div className="space-y-2">
+              {versions.map((v, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setContent({ ...v.content }); setShowHistory(false); }}
+                  className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-primary">v{versions.length - i}</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground mt-1">{v.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{v.timestamp}</p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

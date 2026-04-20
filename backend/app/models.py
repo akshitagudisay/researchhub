@@ -34,8 +34,8 @@ class Manuscript(Base):
     __tablename__ = "manuscripts"
 
     id = Column(Integer, primary_key=True, index=True)
-    content = Column(Text, nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    content = Column(Text, nullable=False, default="{}")
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     project = relationship("Project", back_populates="manuscripts")
@@ -46,6 +46,9 @@ class Dataset(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    file_name = Column(String, nullable=True)
+    file_size = Column(String, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -57,6 +60,9 @@ class Experiment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    attachments = Column(Text, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

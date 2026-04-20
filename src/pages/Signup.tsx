@@ -1,28 +1,36 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/auth-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { FlaskConical } from 'lucide-react';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { FlaskConical } from "lucide-react";
 
 export default function Signup() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (name.trim().length < 2) errs.name = 'Enter your full name';
-    if (!email.includes('@')) errs.email = 'Enter a valid email';
-    if (password.length < 6) errs.password = 'Password must be at least 6 characters';
+    if (!email.includes("@")) errs.email = "Enter a valid email";
+    if (password.length < 6) errs.password = "Password must be at least 6 characters";
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    signup(name, email, password);
-    navigate('/dashboard');
+
+    setLoading(true);
+    setErrors({});
+    try {
+      await signup(email, password);
+      navigate("/dashboard");
+    } catch (err: unknown) {
+      setErrors({ api: err instanceof Error ? err.message : "Signup failed" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,26 +45,40 @@ export default function Signup() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full name</Label>
-            <Input id="name" placeholder="Dr. Jane Doe" value={name} onChange={e => setName(e.target.value)} />
-            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-          </div>
+          {errors.api && (
+            <p className="text-sm text-destructive text-center bg-destructive/10 rounded-lg px-3 py-2">{errors.api}</p>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="you@university.edu" value={email} onChange={e => setEmail(e.target.value)} />
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@university.edu"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              data-testid="input-email"
+            />
             {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              data-testid="input-password"
+            />
             {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
           </div>
-          <Button type="submit" className="w-full">Create account</Button>
+          <Button type="submit" className="w-full" disabled={loading} data-testid="button-signup">
+            {loading ? "Creating account…" : "Create account"}
+          </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
+          Already have an account?{" "}
           <Link to="/login" className="text-primary hover:underline font-medium">Sign in</Link>
         </p>
       </div>
