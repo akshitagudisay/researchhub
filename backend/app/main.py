@@ -13,10 +13,12 @@ from .schemas import (
     DatasetCreate, DatasetUpdate, DatasetRead,
     ExperimentCreate, ExperimentUpdate, ExperimentRead,
 )
+from .routes.invite import router as invite_router
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+app.include_router(invite_router)
 
 app.add_middleware(
     CORSMiddleware,

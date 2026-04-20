@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Literal, Optional
 from pydantic import BaseModel, EmailStr
 
+InviteStatus = Literal["pending", "accepted"]
+
 UserRole = Literal["owner", "editor", "viewer"]
 
 
@@ -130,5 +132,24 @@ class ExperimentRead(BaseModel):
     attachments: Optional[str]
     project_id: int
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Invite ────────────────────────────────────────────────────────────────────
+
+class InviteCreate(BaseModel):
+    email: EmailStr
+    project_id: int
+
+
+class InviteRead(BaseModel):
+    id: int
+    email: str
+    project_id: int
+    invited_by: int
+    status: str
+    created_at: datetime
+    email_warning: Optional[str] = None
 
     model_config = {"from_attributes": True}

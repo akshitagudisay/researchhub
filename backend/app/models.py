@@ -67,3 +67,17 @@ class Experiment(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     project = relationship("Project", back_populates="experiments")
+
+
+class Invite(Base):
+    __tablename__ = "invites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    invited_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String, default="pending", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project")
+    inviter = relationship("User")
