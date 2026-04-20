@@ -8,10 +8,10 @@ from . import models  # noqa: F401
 from .auth import hash_password, verify_password, create_access_token, get_current_user
 from .schemas import (
     UserSignup, UserRead, LoginRequest, Token,
-    ProjectCreate, ProjectRead,
+    ProjectCreate, ProjectUpdate, ProjectRead,
     ManuscriptSave, ManuscriptRead,
-    DatasetCreate, DatasetRead,
-    ExperimentCreate, ExperimentRead,
+    DatasetCreate, DatasetUpdate, DatasetRead,
+    ExperimentCreate, ExperimentUpdate, ExperimentRead,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -84,7 +84,12 @@ def list_projects(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return db.query(models.Project).filter(models.Project.owner_id == current_user.id).order_by(models.Project.created_at.desc()).all()
+    return (
+        db.query(models.Project)
+        .filter(models.Project.owner_id == current_user.id)
+        .order_by(models.Project.created_at.desc())
+        .all()
+    )
 
 
 @app.post("/projects", response_model=ProjectRead, status_code=201)
@@ -107,6 +112,32 @@ def get_project(
     db: Session = Depends(get_db),
 ):
     return _get_project_or_404(project_id, current_user, db)
+
+
+@app.patch("/projects/{project_id}", response_model=ProjectRead)
+def update_project(
+    project_id: int,
+    payload: ProjectUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    if payload.title is not None:
+        project.title = payload.title
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@app.delete("/projects/{project_id}", status_code=204)
+def delete_project(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    db.delete(project)
+    db.commit()
 
 
 # ── Manuscript (one per project, upsert) ──────────────────────────────────────
@@ -140,6 +171,37 @@ def save_manuscript(
     return manuscript
 
 
+@app.patch("/projects/{project_id}/manuscript", response_model=ManuscriptRead)
+def update_manuscript(
+    project_id: int,
+    payload: ManuscriptSave,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
+    if not manuscript:
+        raise HTTPException(status_code=404, detail="Manuscript not found")
+    manuscript.content = payload.content
+    db.commit()
+    db.refresh(manuscript)
+    return manuscript
+
+
+@app.delete("/projects/{project_id}/manuscript", status_code=204)
+def delete_manuscript(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
+    if not manuscript:
+        raise HTTPException(status_code=404, detail="Manuscript not found")
+    db.delete(manuscript)
+    db.commit()
+
+
 # ── Datasets ──────────────────────────────────────────────────────────────────
 
 @app.get("/projects/{project_id}/datasets", response_model=List[DatasetRead])
@@ -149,7 +211,12 @@ def list_datasets(
     db: Session = Depends(get_db),
 ):
     _get_project_or_404(project_id, current_user, db)
-    return db.query(models.Dataset).filter(models.Dataset.project_id == project_id).order_by(models.Dataset.created_at.desc()).all()
+    return (
+        db.query(models.Dataset)
+        .filter(models.Dataset.project_id == project_id)
+        .order_by(models.Dataset.created_at.desc())
+        .all()
+    )
 
 
 @app.post("/projects/{project_id}/datasets", response_model=DatasetRead, status_code=201)
@@ -167,6 +234,45 @@ def create_dataset(
     return dataset
 
 
+@app.get("/projects/{project_id}/datasets/{dataset_id}", response_model=DatasetRead)
+def get_dataset(
+    project_id: int,
+    dataset_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    dataset = db.query(models.Dataset).filter(
+        models.Dataset.id == dataset_id,
+        models.Dataset.project_id == project_id,
+    ).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    return dataset
+
+
+@app.patch("/projects/{project_id}/datasets/{dataset_id}", response_model=DatasetRead)
+def update_dataset(
+    project_id: int,
+    dataset_id: int,
+    payload: DatasetUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    dataset = db.query(models.Dataset).filter(
+        models.Dataset.id == dataset_id,
+        models.Dataset.project_id == project_id,
+    ).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(dataset, field, value)
+    db.commit()
+    db.refresh(dataset)
+    return dataset
+
+
 @app.delete("/projects/{project_id}/datasets/{dataset_id}", status_code=204)
 def delete_dataset(
     project_id: int,
@@ -175,7 +281,10 @@ def delete_dataset(
     db: Session = Depends(get_db),
 ):
     _get_project_or_404(project_id, current_user, db)
-    dataset = db.query(models.Dataset).filter(models.Dataset.id == dataset_id, models.Dataset.project_id == project_id).first()
+    dataset = db.query(models.Dataset).filter(
+        models.Dataset.id == dataset_id,
+        models.Dataset.project_id == project_id,
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
     db.delete(dataset)
@@ -191,7 +300,12 @@ def list_experiments(
     db: Session = Depends(get_db),
 ):
     _get_project_or_404(project_id, current_user, db)
-    return db.query(models.Experiment).filter(models.Experiment.project_id == project_id).order_by(models.Experiment.created_at.desc()).all()
+    return (
+        db.query(models.Experiment)
+        .filter(models.Experiment.project_id == project_id)
+        .order_by(models.Experiment.created_at.desc())
+        .all()
+    )
 
 
 @app.post("/projects/{project_id}/experiments", response_model=ExperimentRead, status_code=201)
@@ -207,3 +321,60 @@ def create_experiment(
     db.commit()
     db.refresh(experiment)
     return experiment
+
+
+@app.get("/projects/{project_id}/experiments/{experiment_id}", response_model=ExperimentRead)
+def get_experiment(
+    project_id: int,
+    experiment_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    experiment = db.query(models.Experiment).filter(
+        models.Experiment.id == experiment_id,
+        models.Experiment.project_id == project_id,
+    ).first()
+    if not experiment:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    return experiment
+
+
+@app.patch("/projects/{project_id}/experiments/{experiment_id}", response_model=ExperimentRead)
+def update_experiment(
+    project_id: int,
+    experiment_id: int,
+    payload: ExperimentUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    experiment = db.query(models.Experiment).filter(
+        models.Experiment.id == experiment_id,
+        models.Experiment.project_id == project_id,
+    ).first()
+    if not experiment:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(experiment, field, value)
+    db.commit()
+    db.refresh(experiment)
+    return experiment
+
+
+@app.delete("/projects/{project_id}/experiments/{experiment_id}", status_code=204)
+def delete_experiment(
+    project_id: int,
+    experiment_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    experiment = db.query(models.Experiment).filter(
+        models.Experiment.id == experiment_id,
+        models.Experiment.project_id == project_id,
+    ).first()
+    if not experiment:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    db.delete(experiment)
+    db.commit()

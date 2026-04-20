@@ -97,8 +97,19 @@ export const api = {
   // ── Projects ─────────────────────────────────────────────────────────────────
   getProjects: () => request<ApiProject[]>("/projects"),
 
+  getProject: (id: number) => request<ApiProject>(`/projects/${id}`),
+
   createProject: (title: string) =>
     request<ApiProject>("/projects", { method: "POST", body: JSON.stringify({ title }) }),
+
+  updateProject: (id: number, body: { title?: string }) =>
+    request<ApiProject>(`/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  deleteProject: (id: number) =>
+    request<void>(`/projects/${id}`, { method: "DELETE" }),
 
   // ── Manuscript ───────────────────────────────────────────────────────────────
   getManuscript: (projectId: number) =>
@@ -110,9 +121,21 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
 
+  updateManuscript: (projectId: number, content: string) =>
+    request<ApiManuscript>(`/projects/${projectId}/manuscript`, {
+      method: "PATCH",
+      body: JSON.stringify({ content }),
+    }),
+
+  deleteManuscript: (projectId: number) =>
+    request<void>(`/projects/${projectId}/manuscript`, { method: "DELETE" }),
+
   // ── Datasets ─────────────────────────────────────────────────────────────────
   getDatasets: (projectId: number) =>
     request<ApiDataset[]>(`/projects/${projectId}/datasets`),
+
+  getDataset: (projectId: number, datasetId: number) =>
+    request<ApiDataset>(`/projects/${projectId}/datasets/${datasetId}`),
 
   createDataset: (
     projectId: number,
@@ -123,12 +146,25 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  updateDataset: (
+    projectId: number,
+    datasetId: number,
+    body: { name?: string; description?: string; file_name?: string; file_size?: string }
+  ) =>
+    request<ApiDataset>(`/projects/${projectId}/datasets/${datasetId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
   deleteDataset: (projectId: number, datasetId: number) =>
     request<void>(`/projects/${projectId}/datasets/${datasetId}`, { method: "DELETE" }),
 
   // ── Experiments ──────────────────────────────────────────────────────────────
   getExperiments: (projectId: number) =>
     request<ApiExperiment[]>(`/projects/${projectId}/experiments`),
+
+  getExperiment: (projectId: number, experimentId: number) =>
+    request<ApiExperiment>(`/projects/${projectId}/experiments/${experimentId}`),
 
   createExperiment: (
     projectId: number,
@@ -138,4 +174,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  updateExperiment: (
+    projectId: number,
+    experimentId: number,
+    body: { name?: string; description?: string; notes?: string; attachments?: string }
+  ) =>
+    request<ApiExperiment>(`/projects/${projectId}/experiments/${experimentId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  deleteExperiment: (projectId: number, experimentId: number) =>
+    request<void>(`/projects/${projectId}/experiments/${experimentId}`, { method: "DELETE" }),
 };

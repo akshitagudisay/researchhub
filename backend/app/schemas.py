@@ -50,6 +50,10 @@ class ProjectCreate(BaseModel):
     title: str
 
 
+class ProjectUpdate(BaseModel):
+    title: Optional[str] = None
+
+
 class ProjectRead(BaseModel):
     id: int
     title: str
@@ -83,6 +87,13 @@ class DatasetCreate(BaseModel):
     file_size: Optional[str] = None
 
 
+class DatasetUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[str] = None
+
+
 class DatasetRead(BaseModel):
     id: int
     name: str
@@ -99,6 +110,13 @@ class DatasetRead(BaseModel):
 
 class ExperimentCreate(BaseModel):
     name: str
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    attachments: Optional[str] = None
+
+
+class ExperimentUpdate(BaseModel):
+    name: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     attachments: Optional[str] = None
