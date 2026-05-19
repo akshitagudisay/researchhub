@@ -74,6 +74,7 @@ class Invite(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, nullable=False, index=True)
+    role = Column(String, default="viewer", nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     invited_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(String, default="pending", nullable=False)

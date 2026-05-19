@@ -24,6 +24,7 @@ def send_invite(
 
     invite = models.Invite(
         email=payload.email,
+        role=payload.role,
         project_id=payload.project_id,
         invited_by=current_user.id,
         status="pending",

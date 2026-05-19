@@ -141,11 +141,13 @@ class ExperimentRead(BaseModel):
 class InviteCreate(BaseModel):
     email: EmailStr
     project_id: int
+    role: UserRole = "viewer"
 
 
 class InviteRead(BaseModel):
     id: int
     email: str
+    role: str
     project_id: int
     invited_by: int
     status: str

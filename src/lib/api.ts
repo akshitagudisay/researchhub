@@ -33,6 +33,17 @@ export interface ApiDataset {
   created_at: string;
 }
 
+export interface ApiInvite {
+  id: number;
+  email: string;
+  role: string;
+  project_id: number;
+  invited_by: number;
+  status: string;
+  created_at: string;
+  email_warning?: string | null;
+}
+
 export interface ApiExperiment {
   id: number;
   name: string;
@@ -187,4 +198,10 @@ export const api = {
 
   deleteExperiment: (projectId: number, experimentId: number) =>
     request<void>(`/projects/${projectId}/experiments/${experimentId}`, { method: "DELETE" }),
+
+  // ── Invites ───────────────────────────────────────────────────────────────────
+  sendInvite: (body: { email: string; project_id: number; role: string }) =>
+    request<ApiInvite>("/invite", { method: "POST", body: JSON.stringify(body) }),
+
+  getInvites: () => request<ApiInvite[]>("/invite"),
 };
