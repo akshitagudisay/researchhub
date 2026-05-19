@@ -125,7 +125,7 @@ export default function ProjectWorkspace() {
             <ExperimentLogs projectId={projectId} canWrite={canWrite} />
           )}
           {activeTab === "collaborators" && (
-            <CollaboratorsPanel projectId={projectId} canWrite={role === "owner"} />
+            <CollaboratorsPanel projectId={projectId} userRole={role} />
           )}
         </main>
       </div>

@@ -13,7 +13,8 @@ from .schemas import (
     ManuscriptSave, ManuscriptRead,
     DatasetCreate, DatasetUpdate, DatasetRead,
     ExperimentCreate, ExperimentUpdate, ExperimentRead,
-    CollaboratorRead,
+    CollaboratorRead, RoleUpdatePayload,
+    AccessRequestCreate, RequestReviewPayload, AccessRequestRead,
 )
 from .routes.invite import router as invite_router
 
@@ -479,3 +480,144 @@ def list_collaborators(
         .order_by(models.Collaborator.joined_at.desc())
         .all()
     )
+
+
+@app.patch("/projects/{project_id}/collaborators/{user_id}/role", response_model=CollaboratorRead)
+def update_collaborator_role(
+    project_id: int,
+    user_id: int,
+    payload: RoleUpdatePayload,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_owner(project, current_user)
+    if user_id == project.owner_id:
+        raise HTTPException(status_code=403, detail="Cannot change the role of the project owner.")
+    collab = db.query(models.Collaborator).filter(
+        models.Collaborator.project_id == project_id,
+        models.Collaborator.user_id == user_id,
+    ).first()
+    if not collab:
+        raise HTTPException(status_code=404, detail="Collaborator not found.")
+    collab.role = payload.role
+    db.commit()
+    db.refresh(collab)
+    return collab
+
+
+@app.delete("/projects/{project_id}/collaborators/{user_id}", status_code=204)
+def remove_collaborator(
+    project_id: int,
+    user_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_owner(project, current_user)
+    if user_id == project.owner_id:
+        raise HTTPException(status_code=403, detail="Cannot remove the project owner.")
+    collab = db.query(models.Collaborator).filter(
+        models.Collaborator.project_id == project_id,
+        models.Collaborator.user_id == user_id,
+    ).first()
+    if not collab:
+        raise HTTPException(status_code=404, detail="Collaborator not found.")
+    db.delete(collab)
+    db.commit()
+
+
+# ── Access Requests ───────────────────────────────────────────────────────────
+
+@app.post("/projects/{project_id}/request-role", response_model=AccessRequestRead, status_code=201)
+def request_role(
+    project_id: int,
+    payload: AccessRequestCreate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    if project.owner_id == current_user.id:
+        raise HTTPException(status_code=403, detail="Project owners cannot submit access requests.")
+    # Prevent duplicate pending requests
+    existing = db.query(models.AccessRequest).filter(
+        models.AccessRequest.project_id == project_id,
+        models.AccessRequest.requester_id == current_user.id,
+        models.AccessRequest.status == "pending",
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="You already have a pending access request for this project.")
+    req = models.AccessRequest(
+        project_id=project_id,
+        requester_id=current_user.id,
+        requested_role=payload.requested_role,
+        status="pending",
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+@app.get("/projects/{project_id}/requests", response_model=List[AccessRequestRead])
+def get_access_requests(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_owner(project, current_user)
+    return (
+        db.query(models.AccessRequest)
+        .filter(
+            models.AccessRequest.project_id == project_id,
+            models.AccessRequest.status == "pending",
+        )
+        .order_by(models.AccessRequest.created_at.desc())
+        .all()
+    )
+
+
+@app.get("/projects/{project_id}/my-requests", response_model=List[AccessRequestRead])
+def get_my_requests(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    return (
+        db.query(models.AccessRequest)
+        .filter(
+            models.AccessRequest.project_id == project_id,
+            models.AccessRequest.requester_id == current_user.id,
+        )
+        .order_by(models.AccessRequest.created_at.desc())
+        .all()
+    )
+
+
+@app.patch("/requests/{request_id}", response_model=AccessRequestRead)
+def review_access_request(
+    request_id: int,
+    payload: RequestReviewPayload,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    req = db.query(models.AccessRequest).filter(models.AccessRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Access request not found.")
+    project = _get_project_or_404(req.project_id, current_user, db)
+    _require_owner(project, current_user)
+    if req.status != "pending":
+        raise HTTPException(status_code=400, detail="This request has already been reviewed.")
+    req.status = payload.status
+    if payload.status == "approved":
+        collab = db.query(models.Collaborator).filter(
+            models.Collaborator.project_id == req.project_id,
+            models.Collaborator.user_id == req.requester_id,
+        ).first()
+        if collab:
+            collab.role = req.requested_role
+    db.commit()
+    db.refresh(req)
+    return req

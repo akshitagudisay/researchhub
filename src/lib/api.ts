@@ -65,7 +65,7 @@ export interface ApiInviteAcceptResponse {
 export interface ApiCollaborator {
   id: number;
   project_id: number;
-  invite_id: number;
+  invite_id: number | null;
   email: string;
   role: string;
   user_id: number | null;
@@ -79,6 +79,15 @@ export interface ApiExperiment {
   notes: string | null;
   attachments: string | null;
   project_id: number;
+  created_at: string;
+}
+
+export interface ApiAccessRequest {
+  id: number;
+  project_id: number;
+  requester_id: number;
+  requested_role: string;
+  status: string;
   created_at: string;
 }
 
@@ -149,6 +158,9 @@ export const api = {
 
   deleteProject: (id: number) =>
     request<void>(`/projects/${id}`, { method: "DELETE" }),
+
+  getMyRole: (projectId: number) =>
+    request<{ role: string }>(`/projects/${projectId}/my-role`),
 
   // ── Manuscript ───────────────────────────────────────────────────────────────
   getManuscript: (projectId: number) =>
@@ -233,15 +245,41 @@ export const api = {
 
   getInvites: () => request<ApiInvite[]>("/invite"),
 
-  getMyRole: (projectId: number) =>
-    request<{ role: string }>(`/projects/${projectId}/my-role`),
-
   previewInvite: (token: string) =>
     request<ApiInvitePreview>(`/invite/preview/${token}`),
 
   acceptInvite: (token: string) =>
     request<ApiInviteAcceptResponse>(`/invite/accept/${token}`, { method: "POST" }),
 
+  // ── Collaborators ─────────────────────────────────────────────────────────────
   getCollaborators: (projectId: number) =>
     request<ApiCollaborator[]>(`/projects/${projectId}/collaborators`),
+
+  updateCollaboratorRole: (projectId: number, userId: number, role: string) =>
+    request<ApiCollaborator>(`/projects/${projectId}/collaborators/${userId}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+
+  removeCollaborator: (projectId: number, userId: number) =>
+    request<void>(`/projects/${projectId}/collaborators/${userId}`, { method: "DELETE" }),
+
+  // ── Access Requests ───────────────────────────────────────────────────────────
+  requestRole: (projectId: number, requestedRole: string) =>
+    request<ApiAccessRequest>(`/projects/${projectId}/request-role`, {
+      method: "POST",
+      body: JSON.stringify({ requested_role: requestedRole }),
+    }),
+
+  getAccessRequests: (projectId: number) =>
+    request<ApiAccessRequest[]>(`/projects/${projectId}/requests`),
+
+  getMyAccessRequests: (projectId: number) =>
+    request<ApiAccessRequest[]>(`/projects/${projectId}/my-requests`),
+
+  reviewAccessRequest: (requestId: number, status: "approved" | "rejected") =>
+    request<ApiAccessRequest>(`/requests/${requestId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
 };

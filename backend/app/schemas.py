@@ -179,10 +179,35 @@ class InviteAcceptResponse(BaseModel):
 class CollaboratorRead(BaseModel):
     id: int
     project_id: int
-    invite_id: int
+    invite_id: Optional[int]
     email: str
     role: str
     user_id: Optional[int]
     joined_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RoleUpdatePayload(BaseModel):
+    role: Literal["editor", "viewer"]
+
+
+# ── Access Request ────────────────────────────────────────────────────────────
+
+class AccessRequestCreate(BaseModel):
+    requested_role: Literal["editor", "viewer"] = "editor"
+
+
+class RequestReviewPayload(BaseModel):
+    status: Literal["approved", "rejected"]
+
+
+class AccessRequestRead(BaseModel):
+    id: int
+    project_id: int
+    requester_id: int
+    requested_role: str
+    status: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}

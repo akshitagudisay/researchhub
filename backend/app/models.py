@@ -100,3 +100,17 @@ class Collaborator(Base):
     project = relationship("Project", back_populates="collaborators")
     invite = relationship("Invite")
     user = relationship("User")
+
+
+class AccessRequest(Base):
+    __tablename__ = "access_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    requested_role = Column(String, nullable=False, default="editor")
+    status = Column(String, nullable=False, default="pending")  # pending/approved/rejected
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project")
+    requester = relationship("User")
