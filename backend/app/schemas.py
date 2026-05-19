@@ -3,7 +3,6 @@ from typing import Literal, Optional
 from pydantic import BaseModel, EmailStr
 
 InviteStatus = Literal["pending", "accepted"]
-
 UserRole = Literal["owner", "editor", "viewer"]
 
 
@@ -153,5 +152,37 @@ class InviteRead(BaseModel):
     status: str
     created_at: datetime
     email_warning: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class InvitePreview(BaseModel):
+    invite_id: int
+    email: str
+    role: str
+    status: str
+    project_title: str
+    inviter_email: str
+    created_at: datetime
+
+
+class InviteAcceptResponse(BaseModel):
+    message: str
+    project_id: int
+    project_title: str
+    role: str
+    collaborator_id: int
+
+
+# ── Collaborator ──────────────────────────────────────────────────────────────
+
+class CollaboratorRead(BaseModel):
+    id: int
+    project_id: int
+    invite_id: int
+    email: str
+    role: str
+    user_id: Optional[int]
+    joined_at: datetime
 
     model_config = {"from_attributes": True}

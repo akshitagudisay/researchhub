@@ -44,6 +44,34 @@ export interface ApiInvite {
   email_warning?: string | null;
 }
 
+export interface ApiInvitePreview {
+  invite_id: number;
+  email: string;
+  role: string;
+  status: string;
+  project_title: string;
+  inviter_email: string;
+  created_at: string;
+}
+
+export interface ApiInviteAcceptResponse {
+  message: string;
+  project_id: number;
+  project_title: string;
+  role: string;
+  collaborator_id: number;
+}
+
+export interface ApiCollaborator {
+  id: number;
+  project_id: number;
+  invite_id: number;
+  email: string;
+  role: string;
+  user_id: number | null;
+  joined_at: string;
+}
+
 export interface ApiExperiment {
   id: number;
   name: string;
@@ -204,4 +232,13 @@ export const api = {
     request<ApiInvite>("/invite", { method: "POST", body: JSON.stringify(body) }),
 
   getInvites: () => request<ApiInvite[]>("/invite"),
+
+  previewInvite: (token: string) =>
+    request<ApiInvitePreview>(`/invite/preview/${token}`),
+
+  acceptInvite: (token: string) =>
+    request<ApiInviteAcceptResponse>(`/invite/accept/${token}`, { method: "POST" }),
+
+  getCollaborators: (projectId: number) =>
+    request<ApiCollaborator[]>(`/projects/${projectId}/collaborators`),
 };

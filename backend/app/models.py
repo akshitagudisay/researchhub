@@ -28,6 +28,7 @@ class Project(Base):
     manuscripts = relationship("Manuscript", back_populates="project")
     datasets = relationship("Dataset", back_populates="project")
     experiments = relationship("Experiment", back_populates="project")
+    collaborators = relationship("Collaborator", back_populates="project")
 
 
 class Manuscript(Base):
@@ -73,6 +74,7 @@ class Invite(Base):
     __tablename__ = "invites"
 
     id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, nullable=False, index=True)
     role = Column(String, default="viewer", nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
@@ -82,3 +84,19 @@ class Invite(Base):
 
     project = relationship("Project")
     inviter = relationship("User")
+
+
+class Collaborator(Base):
+    __tablename__ = "collaborators"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    invite_id = Column(Integer, ForeignKey("invites.id"), nullable=False)
+    email = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="viewer")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project", back_populates="collaborators")
+    invite = relationship("Invite")
+    user = relationship("User")

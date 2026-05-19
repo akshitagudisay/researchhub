@@ -12,6 +12,7 @@ from .schemas import (
     ManuscriptSave, ManuscriptRead,
     DatasetCreate, DatasetUpdate, DatasetRead,
     ExperimentCreate, ExperimentUpdate, ExperimentRead,
+    CollaboratorRead,
 )
 from .routes.invite import router as invite_router
 
@@ -362,6 +363,21 @@ def update_experiment(
     db.commit()
     db.refresh(experiment)
     return experiment
+
+
+@app.get("/projects/{project_id}/collaborators", response_model=List[CollaboratorRead])
+def list_collaborators(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    return (
+        db.query(models.Collaborator)
+        .filter(models.Collaborator.project_id == project_id)
+        .order_by(models.Collaborator.joined_at.desc())
+        .all()
+    )
 
 
 @app.delete("/projects/{project_id}/experiments/{experiment_id}", status_code=204)
