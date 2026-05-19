@@ -91,7 +91,7 @@ class Collaborator(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    invite_id = Column(Integer, ForeignKey("invites.id"), nullable=False)
+    invite_id = Column(Integer, ForeignKey("invites.id"), nullable=True)
     email = Column(String, nullable=False)
     role = Column(String, nullable=False, default="viewer")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

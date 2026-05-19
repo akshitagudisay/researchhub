@@ -233,6 +233,9 @@ export const api = {
 
   getInvites: () => request<ApiInvite[]>("/invite"),
 
+  getMyRole: (projectId: number) =>
+    request<{ role: string }>(`/projects/${projectId}/my-role`),
+
   previewInvite: (token: string) =>
     request<ApiInvitePreview>(`/invite/preview/${token}`),
 

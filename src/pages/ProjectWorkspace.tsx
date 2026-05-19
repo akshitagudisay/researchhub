@@ -8,7 +8,7 @@ import ExperimentLogs from "@/components/ExperimentLogs";
 import CollaboratorsPanel from "@/components/CollaboratorsPanel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Database, FlaskConical, Users, ArrowLeft } from "lucide-react";
+import { FileText, Database, FlaskConical, Users, ArrowLeft, Eye } from "lucide-react";
 
 type Tab = "manuscript" | "datasets" | "experiments" | "collaborators";
 
@@ -36,6 +36,15 @@ export default function ProjectWorkspace() {
     enabled: !!projectId,
   });
 
+  const { data: roleData } = useQuery<{ role: string }>({
+    queryKey: ["/projects", projectId, "my-role"],
+    queryFn: () => api.getMyRole(projectId),
+    enabled: !!projectId,
+  });
+
+  const role = roleData?.role ?? "owner";
+  const canWrite = role === "owner" || role === "editor";
+
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
@@ -56,6 +65,16 @@ export default function ProjectWorkspace() {
             <h2 className="font-display font-semibold text-foreground text-sm line-clamp-2">
               {project?.title}
             </h2>
+          )}
+          {role === "viewer" && (
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted px-2 py-1 rounded-md">
+              <Eye className="w-3 h-3" /> Read-only access
+            </div>
+          )}
+          {role === "editor" && (
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+              <Users className="w-3 h-3" /> Editor access
+            </div>
           )}
         </div>
         <nav className="flex-1 p-3 space-y-1">
@@ -79,17 +98,35 @@ export default function ProjectWorkspace() {
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-12 border-b bg-card flex items-center px-5 flex-shrink-0">
-          <h3 className="font-medium text-foreground text-sm">
+        <header className="h-12 border-b bg-card flex items-center px-5 flex-shrink-0 gap-3">
+          <h3 className="font-medium text-foreground text-sm flex-1">
             {project?.title ?? "Loading…"}
           </h3>
+          {role === "viewer" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2.5 py-1 rounded-full">
+              <Eye className="w-3 h-3" /> Viewer — read-only
+            </span>
+          )}
+          {role === "editor" && (
+            <span className="text-xs text-blue-700 flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-full">
+              <Users className="w-3 h-3" /> Editor
+            </span>
+          )}
         </header>
 
         <main className="flex-1 overflow-auto">
-          {activeTab === "manuscript" && <ManuscriptEditor projectId={projectId} />}
-          {activeTab === "datasets" && <DatasetManager projectId={projectId} />}
-          {activeTab === "experiments" && <ExperimentLogs projectId={projectId} />}
-          {activeTab === "collaborators" && <CollaboratorsPanel projectId={projectId} />}
+          {activeTab === "manuscript" && (
+            <ManuscriptEditor projectId={projectId} canWrite={canWrite} />
+          )}
+          {activeTab === "datasets" && (
+            <DatasetManager projectId={projectId} canWrite={canWrite} />
+          )}
+          {activeTab === "experiments" && (
+            <ExperimentLogs projectId={projectId} canWrite={canWrite} />
+          )}
+          {activeTab === "collaborators" && (
+            <CollaboratorsPanel projectId={projectId} canWrite={role === "owner"} />
+          )}
         </main>
       </div>
     </div>

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -51,7 +52,7 @@ def signup(payload: UserSignup, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    # Link any accepted collaborator records that were created before this account existed
+    # Link any accepted collaborator records that existed before account creation
     db.query(models.Collaborator).filter(
         models.Collaborator.email == payload.email,
         models.Collaborator.user_id.is_(None),
@@ -77,13 +78,24 @@ def get_me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
 
-# ── Projects ──────────────────────────────────────────────────────────────────
+# ── Project access helpers ────────────────────────────────────────────────────
 
 def _is_collaborator(project_id: int, user_id: int, db: Session) -> bool:
     return db.query(models.Collaborator).filter(
         models.Collaborator.project_id == project_id,
         models.Collaborator.user_id == user_id,
     ).first() is not None
+
+
+def _get_user_role(project: models.Project, user: models.User, db: Session) -> str:
+    """Return the effective role string for a user on a project."""
+    if project.owner_id == user.id:
+        return "owner"
+    collab = db.query(models.Collaborator).filter(
+        models.Collaborator.project_id == project.id,
+        models.Collaborator.user_id == user.id,
+    ).first()
+    return collab.role if collab else "none"
 
 
 def _get_project_or_404(project_id: int, user: models.User, db: Session) -> models.Project:
@@ -97,16 +109,33 @@ def _get_project_or_404(project_id: int, user: models.User, db: Session) -> mode
     raise HTTPException(status_code=403, detail="Not authorized to access this project")
 
 
+def _require_write_access(project: models.Project, user: models.User, db: Session) -> None:
+    """Allow owner and editor. Block viewer."""
+    role = _get_user_role(project, user, db)
+    if role not in ("owner", "editor"):
+        raise HTTPException(
+            status_code=403,
+            detail="Viewers have read-only access. Ask the project owner to upgrade your role.",
+        )
+
+
+def _require_owner(project: models.Project, user: models.User) -> None:
+    """Only the project owner may perform this action."""
+    if project.owner_id != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the project owner can perform this action.",
+        )
+
+
+# ── Projects ──────────────────────────────────────────────────────────────────
+
 @app.get("/projects", response_model=List[ProjectRead])
 def list_projects(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    owned = (
-        db.query(models.Project)
-        .filter(models.Project.owner_id == current_user.id)
-        .all()
-    )
+    owned = db.query(models.Project).filter(models.Project.owner_id == current_user.id).all()
     collab_ids = [
         row[0] for row in
         db.query(models.Collaborator.project_id)
@@ -114,11 +143,8 @@ def list_projects(
         .all()
     ]
     shared = (
-        db.query(models.Project)
-        .filter(models.Project.id.in_(collab_ids))
-        .all()
+        db.query(models.Project).filter(models.Project.id.in_(collab_ids)).all()
     ) if collab_ids else []
-
     seen = {p.id for p in owned}
     combined = list(owned) + [p for p in shared if p.id not in seen]
     combined.sort(key=lambda p: p.created_at, reverse=True)
@@ -147,6 +173,20 @@ def get_project(
     return _get_project_or_404(project_id, current_user, db)
 
 
+class RoleResponse(BaseModel):
+    role: str
+
+
+@app.get("/projects/{project_id}/my-role", response_model=RoleResponse)
+def get_my_role(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    return {"role": _get_user_role(project, current_user, db)}
+
+
 @app.patch("/projects/{project_id}", response_model=ProjectRead)
 def update_project(
     project_id: int,
@@ -155,6 +195,7 @@ def update_project(
     db: Session = Depends(get_db),
 ):
     project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     if payload.title is not None:
         project.title = payload.title
     db.commit()
@@ -169,11 +210,12 @@ def delete_project(
     db: Session = Depends(get_db),
 ):
     project = _get_project_or_404(project_id, current_user, db)
+    _require_owner(project, current_user)   # only owner can delete
     db.delete(project)
     db.commit()
 
 
-# ── Manuscript (one per project, upsert) ──────────────────────────────────────
+# ── Manuscript ────────────────────────────────────────────────────────────────
 
 @app.get("/projects/{project_id}/manuscript", response_model=ManuscriptRead | None)
 def get_manuscript(
@@ -192,7 +234,8 @@ def save_manuscript(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
     if manuscript:
         manuscript.content = payload.content
@@ -211,7 +254,8 @@ def update_manuscript(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
     if not manuscript:
         raise HTTPException(status_code=404, detail="Manuscript not found")
@@ -227,7 +271,8 @@ def delete_manuscript(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
     if not manuscript:
         raise HTTPException(status_code=404, detail="Manuscript not found")
@@ -259,7 +304,8 @@ def create_dataset(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     dataset = models.Dataset(project_id=project_id, **payload.model_dump())
     db.add(dataset)
     db.commit()
@@ -292,7 +338,8 @@ def update_dataset(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     dataset = db.query(models.Dataset).filter(
         models.Dataset.id == dataset_id,
         models.Dataset.project_id == project_id,
@@ -313,7 +360,8 @@ def delete_dataset(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     dataset = db.query(models.Dataset).filter(
         models.Dataset.id == dataset_id,
         models.Dataset.project_id == project_id,
@@ -348,7 +396,8 @@ def create_experiment(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     experiment = models.Experiment(project_id=project_id, **payload.model_dump())
     db.add(experiment)
     db.commit()
@@ -381,7 +430,8 @@ def update_experiment(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_project_or_404(project_id, current_user, db)
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
     experiment = db.query(models.Experiment).filter(
         models.Experiment.id == experiment_id,
         models.Experiment.project_id == project_id,
@@ -394,6 +444,27 @@ def update_experiment(
     db.refresh(experiment)
     return experiment
 
+
+@app.delete("/projects/{project_id}/experiments/{experiment_id}", status_code=204)
+def delete_experiment(
+    project_id: int,
+    experiment_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
+    experiment = db.query(models.Experiment).filter(
+        models.Experiment.id == experiment_id,
+        models.Experiment.project_id == project_id,
+    ).first()
+    if not experiment:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    db.delete(experiment)
+    db.commit()
+
+
+# ── Collaborators ─────────────────────────────────────────────────────────────
 
 @app.get("/projects/{project_id}/collaborators", response_model=List[CollaboratorRead])
 def list_collaborators(
@@ -408,21 +479,3 @@ def list_collaborators(
         .order_by(models.Collaborator.joined_at.desc())
         .all()
     )
-
-
-@app.delete("/projects/{project_id}/experiments/{experiment_id}", status_code=204)
-def delete_experiment(
-    project_id: int,
-    experiment_id: int,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    _get_project_or_404(project_id, current_user, db)
-    experiment = db.query(models.Experiment).filter(
-        models.Experiment.id == experiment_id,
-        models.Experiment.project_id == project_id,
-    ).first()
-    if not experiment:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-    db.delete(experiment)
-    db.commit()

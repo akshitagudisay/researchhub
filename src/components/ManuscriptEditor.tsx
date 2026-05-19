@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Save, History, ChevronRight } from "lucide-react";
+import { Save, History, ChevronRight, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ManuscriptContent {
@@ -29,7 +29,12 @@ interface VersionEntry {
   content: ManuscriptContent;
 }
 
-export default function ManuscriptEditor({ projectId }: { projectId: number }) {
+interface Props {
+  projectId: number;
+  canWrite?: boolean;
+}
+
+export default function ManuscriptEditor({ projectId, canWrite = true }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [content, setContent] = useState<ManuscriptContent>(EMPTY);
@@ -81,7 +86,7 @@ export default function ManuscriptEditor({ projectId }: { projectId: number }) {
   return (
     <div className="flex h-full">
       <div className="flex-1 flex flex-col">
-        {/* Section tabs */}
+        {/* Section tabs + actions */}
         <div className="flex items-center gap-1 border-b px-4 py-2 bg-card overflow-x-auto">
           {sections.map(s => (
             <button
@@ -101,19 +106,36 @@ export default function ManuscriptEditor({ projectId }: { projectId: number }) {
           <Button variant="outline" size="sm" onClick={() => setShowHistory(!showHistory)}>
             <History className="w-3.5 h-3.5 mr-1.5" /> History
           </Button>
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} data-testid="button-save-manuscript">
-            <Save className="w-3.5 h-3.5 mr-1.5" /> {saveMutation.isPending ? "Saving…" : "Save Version"}
-          </Button>
+          {canWrite ? (
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              data-testid="button-save-manuscript"
+            >
+              <Save className="w-3.5 h-3.5 mr-1.5" />
+              {saveMutation.isPending ? "Saving…" : "Save Version"}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
+              <Eye className="w-3.5 h-3.5" /> Read-only
+            </div>
+          )}
         </div>
 
         {/* Editor */}
         <div className="flex-1 p-6 overflow-auto">
-          <h2 className="font-display text-xl font-semibold text-foreground mb-3 capitalize">{activeSection}</h2>
+          <h2 className="font-display text-xl font-semibold text-foreground mb-3 capitalize">
+            {activeSection}
+          </h2>
           <Textarea
             value={content[activeSection]}
-            onChange={e => setContent({ ...content, [activeSection]: e.target.value })}
-            className="min-h-[300px] resize-none text-sm leading-relaxed border-none shadow-none focus-visible:ring-0 p-0 bg-transparent"
-            placeholder={`Write your ${activeSection} here…`}
+            onChange={e => canWrite && setContent({ ...content, [activeSection]: e.target.value })}
+            readOnly={!canWrite}
+            className={`min-h-[300px] resize-none text-sm leading-relaxed border-none shadow-none focus-visible:ring-0 p-0 bg-transparent ${
+              !canWrite ? "cursor-default select-text text-muted-foreground" : ""
+            }`}
+            placeholder={canWrite ? `Write your ${activeSection} here…` : `No ${activeSection} written yet.`}
             data-testid={`textarea-${activeSection}`}
           />
         </div>
@@ -130,7 +152,7 @@ export default function ManuscriptEditor({ projectId }: { projectId: number }) {
               {versions.map((v, i) => (
                 <button
                   key={i}
-                  onClick={() => { setContent({ ...v.content }); setShowHistory(false); }}
+                  onClick={() => { if (canWrite) setContent({ ...v.content }); setShowHistory(false); }}
                   className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors group"
                 >
                   <div className="flex items-center justify-between">

@@ -7,14 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Upload, FileText, Plus, HardDrive, Trash2 } from "lucide-react";
+import { Upload, FileText, Plus, HardDrive, Trash2, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export default function DatasetManager({ projectId }: { projectId: number }) {
+interface Props {
+  projectId: number;
+  canWrite?: boolean;
+}
+
+export default function DatasetManager({ projectId, canWrite = true }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -51,6 +56,7 @@ export default function DatasetManager({ projectId }: { projectId: number }) {
   });
 
   const simulateUpload = useCallback((fileName: string) => {
+    if (!canWrite) return;
     const size = `${(Math.random() * 500 + 10).toFixed(0)} MB`;
     setForm({
       name: fileName.split(".")[0].replace(/[_-]/g, " "),
@@ -59,7 +65,7 @@ export default function DatasetManager({ projectId }: { projectId: number }) {
       file_size: size,
     });
     setOpen(true);
-  }, []);
+  }, [canWrite]);
 
   const handleAdd = () => {
     if (!form.name.trim()) return;
@@ -68,45 +74,53 @@ export default function DatasetManager({ projectId }: { projectId: number }) {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Drop zone */}
-      <div
-        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) simulateUpload(f.name); }}
-        className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors ${
-          dragOver ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
-        }`}
-      >
-        <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
-        <p className="text-sm text-muted-foreground">Drag & drop files here, or</p>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="mt-3" data-testid="button-add-dataset">
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Dataset
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Add Dataset</DialogTitle></DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input placeholder="Dataset name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>File Name</Label>
-                <Input placeholder="dataset.csv" value={form.file_name} onChange={e => setForm({ ...form, file_name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea placeholder="Brief description…" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} />
-              </div>
-              <Button onClick={handleAdd} className="w-full" disabled={createMutation.isPending} data-testid="button-confirm-dataset">
-                {createMutation.isPending ? "Adding…" : "Add Dataset"}
+      {/* Drop zone / upload area */}
+      {canWrite ? (
+        <div
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) simulateUpload(f.name); }}
+          className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors ${
+            dragOver ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"
+          }`}
+        >
+          <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">Drag & drop files here, or</p>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="mt-3" data-testid="button-add-dataset">
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Dataset
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Add Dataset</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input placeholder="Dataset name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>File Name</Label>
+                  <Input placeholder="dataset.csv" value={form.file_name} onChange={e => setForm({ ...form, file_name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea placeholder="Brief description…" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} />
+                </div>
+                <Button onClick={handleAdd} className="w-full" disabled={createMutation.isPending} data-testid="button-confirm-dataset">
+                  {createMutation.isPending ? "Adding…" : "Add Dataset"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      ) : (
+        <div className="border-2 border-dashed rounded-xl p-8 text-center border-border bg-muted/30">
+          <Eye className="w-7 h-7 mx-auto text-muted-foreground mb-2" />
+          <p className="text-sm text-muted-foreground font-medium">Read-only access</p>
+          <p className="text-xs text-muted-foreground mt-1">You can view datasets but cannot add or remove them.</p>
+        </div>
+      )}
 
       {/* Dataset list */}
       {isLoading ? (
@@ -131,16 +145,18 @@ export default function DatasetManager({ projectId }: { projectId: number }) {
                   <span>{formatDate(d.created_at)}</span>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-destructive"
-                onClick={() => deleteMutation.mutate(d.id)}
-                disabled={deleteMutation.isPending}
-                data-testid={`button-delete-dataset-${d.id}`}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {canWrite && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => deleteMutation.mutate(d.id)}
+                  disabled={deleteMutation.isPending}
+                  data-testid={`button-delete-dataset-${d.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           ))}
         </div>

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Paperclip, Clock, FlaskConical } from "lucide-react";
+import { Plus, Paperclip, Clock, FlaskConical, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function formatDate(iso: string) {
@@ -16,7 +16,12 @@ function formatDate(iso: string) {
   });
 }
 
-export default function ExperimentLogs({ projectId }: { projectId: number }) {
+interface Props {
+  projectId: number;
+  canWrite?: boolean;
+}
+
+export default function ExperimentLogs({ projectId, canWrite = true }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -53,37 +58,43 @@ export default function ExperimentLogs({ projectId }: { projectId: number }) {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg font-semibold text-foreground">Experiment Timeline</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" data-testid="button-add-experiment">
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Experiment
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Log New Experiment</DialogTitle></DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input placeholder="Experiment title" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Input placeholder="Brief description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea placeholder="Observations, results, parameters…" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
-              </div>
-              <div className="space-y-2">
-                <Label>Attachments (comma-separated filenames)</Label>
-                <Input placeholder="log.txt, results.csv" value={form.attachments} onChange={e => setForm({ ...form, attachments: e.target.value })} />
-              </div>
-              <Button onClick={handleAdd} className="w-full" disabled={createMutation.isPending} data-testid="button-confirm-experiment">
-                {createMutation.isPending ? "Logging…" : "Log Experiment"}
+        {canWrite ? (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" data-testid="button-add-experiment">
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Experiment
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Log New Experiment</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Title</Label>
+                  <Input placeholder="Experiment title" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Input placeholder="Brief description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea placeholder="Observations, results, parameters…" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Attachments (comma-separated filenames)</Label>
+                  <Input placeholder="log.txt, results.csv" value={form.attachments} onChange={e => setForm({ ...form, attachments: e.target.value })} />
+                </div>
+                <Button onClick={handleAdd} className="w-full" disabled={createMutation.isPending} data-testid="button-confirm-experiment">
+                  {createMutation.isPending ? "Logging…" : "Log Experiment"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
+            <Eye className="w-3.5 h-3.5" /> Read-only
+          </div>
+        )}
       </div>
 
       {isLoading ? (
