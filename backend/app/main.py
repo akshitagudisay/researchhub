@@ -51,6 +51,12 @@ def signup(payload: UserSignup, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+    # Link any accepted collaborator records that were created before this account existed
+    db.query(models.Collaborator).filter(
+        models.Collaborator.email == payload.email,
+        models.Collaborator.user_id.is_(None),
+    ).update({"user_id": user.id})
+    db.commit()
     return user
 
 
@@ -73,13 +79,22 @@ def get_me(current_user: models.User = Depends(get_current_user)):
 
 # ── Projects ──────────────────────────────────────────────────────────────────
 
+def _is_collaborator(project_id: int, user_id: int, db: Session) -> bool:
+    return db.query(models.Collaborator).filter(
+        models.Collaborator.project_id == project_id,
+        models.Collaborator.user_id == user_id,
+    ).first() is not None
+
+
 def _get_project_or_404(project_id: int, user: models.User, db: Session) -> models.Project:
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    if project.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Not your project")
-    return project
+    if project.owner_id == user.id:
+        return project
+    if _is_collaborator(project_id, user.id, db):
+        return project
+    raise HTTPException(status_code=403, detail="Not authorized to access this project")
 
 
 @app.get("/projects", response_model=List[ProjectRead])
@@ -87,12 +102,27 @@ def list_projects(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return (
+    owned = (
         db.query(models.Project)
         .filter(models.Project.owner_id == current_user.id)
-        .order_by(models.Project.created_at.desc())
         .all()
     )
+    collab_ids = [
+        row[0] for row in
+        db.query(models.Collaborator.project_id)
+        .filter(models.Collaborator.user_id == current_user.id)
+        .all()
+    ]
+    shared = (
+        db.query(models.Project)
+        .filter(models.Project.id.in_(collab_ids))
+        .all()
+    ) if collab_ids else []
+
+    seen = {p.id for p in owned}
+    combined = list(owned) + [p for p in shared if p.id not in seen]
+    combined.sort(key=lambda p: p.created_at, reverse=True)
+    return combined
 
 
 @app.post("/projects", response_model=ProjectRead, status_code=201)
