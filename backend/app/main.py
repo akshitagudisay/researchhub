@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
+import json
+from datetime import datetime
 
 from .database import engine, Base, get_db
 from . import models  # noqa: F401
@@ -18,12 +20,18 @@ from .schemas import (
 )
 from .routes.invite import router as invite_router
 from .routes.chat import router as chat_router
+from .routes.manuscript_ws import router as manuscript_ws_router
+from .routes.citations import router as citations_router
+from .routes.contributions import router as contributions_router
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 app.include_router(invite_router)
 app.include_router(chat_router)
+app.include_router(manuscript_ws_router)
+app.include_router(citations_router)
+app.include_router(contributions_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,6 +40,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Contribution logging helper ────────────────────────────────────────────────
+
+def _log_contribution(db: Session, user_id: int, project_id: int, action_type: str, score: int, meta: dict | None = None):
+    contrib = models.Contribution(
+        user_id=user_id,
+        project_id=project_id,
+        action_type=action_type,
+        contribution_score=score,
+        extra_data=json.dumps(meta or {}),
+    )
+    db.add(contrib)
+    db.commit()
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -55,7 +77,6 @@ def signup(payload: UserSignup, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    # Link any accepted collaborator records that existed before account creation
     db.query(models.Collaborator).filter(
         models.Collaborator.email == payload.email,
         models.Collaborator.user_id.is_(None),
@@ -91,7 +112,6 @@ def _is_collaborator(project_id: int, user_id: int, db: Session) -> bool:
 
 
 def _get_user_role(project: models.Project, user: models.User, db: Session) -> str:
-    """Return the effective role string for a user on a project."""
     if project.owner_id == user.id:
         return "owner"
     collab = db.query(models.Collaborator).filter(
@@ -113,7 +133,6 @@ def _get_project_or_404(project_id: int, user: models.User, db: Session) -> mode
 
 
 def _require_write_access(project: models.Project, user: models.User, db: Session) -> None:
-    """Allow owner and editor. Block viewer."""
     role = _get_user_role(project, user, db)
     if role not in ("owner", "editor"):
         raise HTTPException(
@@ -123,7 +142,6 @@ def _require_write_access(project: models.Project, user: models.User, db: Sessio
 
 
 def _require_owner(project: models.Project, user: models.User) -> None:
-    """Only the project owner may perform this action."""
     if project.owner_id != user.id:
         raise HTTPException(
             status_code=403,
@@ -213,7 +231,7 @@ def delete_project(
     db: Session = Depends(get_db),
 ):
     project = _get_project_or_404(project_id, current_user, db)
-    _require_owner(project, current_user)   # only owner can delete
+    _require_owner(project, current_user)
     db.delete(project)
     db.commit()
 
@@ -240,13 +258,16 @@ def save_manuscript(
     project = _get_project_or_404(project_id, current_user, db)
     _require_write_access(project, current_user, db)
     manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
+    now = datetime.utcnow()
     if manuscript:
         manuscript.content = payload.content
+        manuscript.updated_at = now
     else:
-        manuscript = models.Manuscript(content=payload.content, project_id=project_id)
+        manuscript = models.Manuscript(content=payload.content, project_id=project_id, updated_at=now)
         db.add(manuscript)
     db.commit()
     db.refresh(manuscript)
+    _log_contribution(db, current_user.id, project_id, "manuscript_edit", 5)
     return manuscript
 
 
@@ -263,8 +284,10 @@ def update_manuscript(
     if not manuscript:
         raise HTTPException(status_code=404, detail="Manuscript not found")
     manuscript.content = payload.content
+    manuscript.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(manuscript)
+    _log_contribution(db, current_user.id, project_id, "manuscript_edit", 5)
     return manuscript
 
 
@@ -313,6 +336,7 @@ def create_dataset(
     db.add(dataset)
     db.commit()
     db.refresh(dataset)
+    _log_contribution(db, current_user.id, project_id, "dataset_upload", 10, {"name": dataset.name})
     return dataset
 
 
@@ -405,6 +429,7 @@ def create_experiment(
     db.add(experiment)
     db.commit()
     db.refresh(experiment)
+    _log_contribution(db, current_user.id, project_id, "experiment_add", 8, {"name": experiment.name})
     return experiment
 
 
@@ -541,7 +566,6 @@ def request_role(
     project = _get_project_or_404(project_id, current_user, db)
     if project.owner_id == current_user.id:
         raise HTTPException(status_code=403, detail="Project owners cannot submit access requests.")
-    # Prevent duplicate pending requests
     existing = db.query(models.AccessRequest).filter(
         models.AccessRequest.project_id == project_id,
         models.AccessRequest.requester_id == current_user.id,
@@ -611,7 +635,7 @@ def review_access_request(
     project = _get_project_or_404(req.project_id, current_user, db)
     _require_owner(project, current_user)
     if req.status != "pending":
-        raise HTTPException(status_code=400, detail="This request has already been reviewed.")
+        raise HTTPException(status_code=409, detail="Request already reviewed.")
     req.status = payload.status
     if payload.status == "approved":
         collab = db.query(models.Collaborator).filter(
@@ -620,6 +644,15 @@ def review_access_request(
         ).first()
         if collab:
             collab.role = req.requested_role
+        else:
+            requester = db.query(models.User).filter(models.User.id == req.requester_id).first()
+            collab = models.Collaborator(
+                project_id=req.project_id,
+                email=requester.email if requester else "",
+                role=req.requested_role,
+                user_id=req.requester_id,
+            )
+            db.add(collab)
     db.commit()
     db.refresh(req)
     return req

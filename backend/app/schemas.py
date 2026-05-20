@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 from pydantic import BaseModel, EmailStr
 
 InviteStatus = Literal["pending", "accepted"]
@@ -75,6 +75,7 @@ class ManuscriptRead(BaseModel):
     content: str
     project_id: int
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -224,3 +225,42 @@ class ChatMessageRead(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Citation ──────────────────────────────────────────────────────────────────
+
+class CitationRead(BaseModel):
+    id: int
+    project_id: int
+    doi: Optional[str] = None
+    title: str
+    authors: List[str]
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    citation_type: str
+    formatted_apa: Optional[str] = None
+    formatted_ieee: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Contribution ──────────────────────────────────────────────────────────────
+
+class ContributionRead(BaseModel):
+    id: int
+    user_id: int
+    project_id: int
+    action_type: str
+    contribution_score: int
+    extra_data: Optional[str] = None
+    timestamp: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ContributionSummary(BaseModel):
+    contributors: list
+    total_score: int
+    recent_activity: list
+    action_scores: dict

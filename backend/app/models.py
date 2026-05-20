@@ -38,6 +38,7 @@ class Manuscript(Base):
     content = Column(Text, nullable=False, default="{}")
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=True)
 
     project = relationship("Project", back_populates="manuscripts")
 
@@ -109,7 +110,7 @@ class AccessRequest(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     requested_role = Column(String, nullable=False, default="editor")
-    status = Column(String, nullable=False, default="pending")  # pending/approved/rejected
+    status = Column(String, nullable=False, default="pending")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     project = relationship("Project")
@@ -127,3 +128,40 @@ class ChatMessage(Base):
 
     project = relationship("Project")
     sender = relationship("User")
+
+
+# ── Sprint 3: Citation Management ─────────────────────────────────────────────
+
+class Citation(Base):
+    __tablename__ = "citations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    doi = Column(String, nullable=True)
+    title = Column(Text, nullable=False)
+    authors = Column(Text, nullable=False, default="[]")  # JSON array string
+    journal = Column(String, nullable=True)
+    year = Column(Integer, nullable=True)
+    citation_type = Column(String, default="article", nullable=False)
+    formatted_apa = Column(Text, nullable=True)
+    formatted_ieee = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project")
+
+
+# ── Sprint 3: Contribution Tracking ───────────────────────────────────────────
+
+class Contribution(Base):
+    __tablename__ = "contributions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    action_type = Column(String, nullable=False)  # manuscript_edit, dataset_upload, experiment_add, citation_add
+    contribution_score = Column(Integer, default=0, nullable=False)
+    extra_data = Column(Text, nullable=True)  # JSON string for extra context
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User")
+    project = relationship("Project")

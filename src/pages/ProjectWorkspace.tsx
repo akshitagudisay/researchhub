@@ -8,17 +8,22 @@ import DatasetManager from "@/components/DatasetManager";
 import ExperimentLogs from "@/components/ExperimentLogs";
 import CollaboratorsPanel from "@/components/CollaboratorsPanel";
 import ChatSidebar from "@/components/ChatSidebar";
+import ContributionsDashboard from "@/components/ContributionsDashboard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Database, FlaskConical, Users, ArrowLeft, Eye, MessageSquare } from "lucide-react";
+import {
+  FileText, Database, FlaskConical, Users, ArrowLeft,
+  Eye, MessageSquare, BarChart3,
+} from "lucide-react";
 
-type Tab = "manuscript" | "datasets" | "experiments" | "collaborators";
+type Tab = "manuscript" | "datasets" | "experiments" | "collaborators" | "analytics";
 
 const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: "manuscript", label: "Manuscript", icon: FileText },
   { key: "datasets", label: "Datasets", icon: Database },
   { key: "experiments", label: "Experiments", icon: FlaskConical },
   { key: "collaborators", label: "Collaborators", icon: Users },
+  { key: "analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 export default function ProjectWorkspace() {
@@ -28,6 +33,8 @@ export default function ProjectWorkspace() {
   const [activeTab, setActiveTab] = useState<Tab>("manuscript");
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+
+  const { token } = useAuth();
 
   const { data: project, isLoading } = useQuery<ApiProject>({
     queryKey: ["/projects", projectId],
@@ -53,14 +60,8 @@ export default function ProjectWorkspace() {
     if (!chatOpen) setUnread(count);
   }, [chatOpen]);
 
-  const openChat = () => {
-    setUnread(0);
-    setChatOpen(true);
-  };
-
-  const closeChat = () => {
-    setChatOpen(false);
-  };
+  const openChat = () => { setUnread(0); setChatOpen(true); };
+  const closeChat = () => setChatOpen(false);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -108,34 +109,39 @@ export default function ProjectWorkspace() {
             >
               <t.icon className="w-4 h-4" />
               {t.label}
+              {t.key === "analytics" && (
+                <span className="ml-auto text-[9px] bg-gradient-to-r from-violet-500 to-blue-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                  NEW
+                </span>
+              )}
             </button>
           ))}
         </nav>
       </aside>
 
       {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-12 border-b bg-card flex items-center px-5 flex-shrink-0 gap-3">
-          <h3 className="font-medium text-foreground text-sm flex-1">
+          <h3 className="font-medium text-foreground text-sm flex-1 truncate">
             {project?.title ?? "Loading…"}
           </h3>
           {role === "viewer" && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2.5 py-1 rounded-full">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2.5 py-1 rounded-full flex-shrink-0">
               <Eye className="w-3 h-3" /> Viewer — read-only
             </span>
           )}
           {role === "editor" && (
-            <span className="text-xs text-blue-700 flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-full">
+            <span className="text-xs text-blue-700 flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-full flex-shrink-0">
               <Users className="w-3 h-3" /> Editor
             </span>
           )}
 
-          {/* Chat toggle button */}
+          {/* Chat toggle */}
           <Button
             variant={chatOpen ? "default" : "outline"}
             size="sm"
             onClick={chatOpen ? closeChat : openChat}
-            className="relative gap-1.5 h-8"
+            className="relative gap-1.5 h-8 flex-shrink-0"
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span className="text-xs">Chat</span>
@@ -147,7 +153,7 @@ export default function ProjectWorkspace() {
           </Button>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-hidden flex flex-col">
           {activeTab === "manuscript" && (
             <ManuscriptEditor projectId={projectId} canWrite={canWrite} />
           )}
@@ -159,6 +165,9 @@ export default function ProjectWorkspace() {
           )}
           {activeTab === "collaborators" && (
             <CollaboratorsPanel projectId={projectId} userRole={role} />
+          )}
+          {activeTab === "analytics" && (
+            <ContributionsDashboard projectId={projectId} projectTitle={project?.title} />
           )}
         </main>
       </div>

@@ -1,0 +1,457 @@
+We are now implementing the next major Sprint-3 upgrade for the existing ResearchHub platform.
+
+Current system already includes:
+
+* FastAPI backend
+* React + Vite frontend
+* JWT authentication
+* role-based collaboration
+* project workspaces
+* manuscripts
+* datasets
+* experiments
+* invites
+* collaborator permissions
+* real-time chat
+* AI research assistant sidebar
+
+Do NOT refactor existing architecture.
+
+The goal is to implement THREE connected advanced features together:
+
+1. Lightweight Real-Time Manuscript Collaboration
+2. Advanced Citation Management
+3. Contributor Tracking & Authorship Analytics
+
+These features must work end-to-end and integrate naturally with the current manuscript workflow.
+
+IMPORTANT:
+Implementation should be:
+
+* lightweight
+* modular
+* visually impressive
+* feasible quickly
+* demo-friendly
+
+Do NOT build Google Docs-level complexity.
+Do NOT use heavy CRDT infrastructure.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — REAL-TIME MANUSCRIPT COLLABORATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement lightweight collaborative editing using:
+
+* FastAPI WebSockets
+* autosave
+* active editor tracking
+* edit broadcasting
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create websocket route:
+
+/ws/manuscript/{project_id}
+
+Features:
+
+* authenticated websocket connection using JWT
+* maintain connected collaborators per project
+* broadcast manuscript edits live
+* track active editing users
+* track currently edited section
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ACTIVE COLLABORATOR TRACKING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Track:
+
+* user_id
+* username/email
+* current editing section
+* last active timestamp
+
+Example:
+
+* Akshita editing Introduction
+* Rahul viewing Results
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AUTOSAVE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement autosave:
+
+* every few seconds
+* save manuscript changes automatically
+* store updated_at timestamps
+
+Create edit event logging.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SECTION-BASED EDITING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Manuscript sections:
+
+* Abstract
+* Introduction
+* Methodology
+* Results
+* Conclusion
+
+Track which collaborator edits which section.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CONFLICT HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement lightweight protection:
+
+* temporary section lock while editing
+* last-write protection
+* warning if another user edits same section
+
+NO complex OT/CRDT required.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside manuscript editor page:
+
+Add:
+
+* active collaborators panel
+* live editing indicators
+* collaborator badges/colors
+* autosave status indicator
+
+Show:
+
+* who is editing which section
+* online collaborators
+* live manuscript updates
+
+Add:
+
+* colored editing highlights
+* smooth UI updates
+* websocket reconnect logic
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+User A edits Introduction
+→ websocket broadcasts update
+→ User B sees live change
+→ autosave triggers
+→ edit logged in database
+→ active editor status updates
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — ADVANCED CITATION MANAGEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement lightweight but visually impressive academic citation management.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create Citation model:
+
+Fields:
+
+* id
+* project_id
+* doi
+* title
+* authors
+* journal
+* year
+* citation_type
+* formatted_apa
+* formatted_ieee
+* created_at
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DOI LOOKUP
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Integrate Crossref API.
+
+Create endpoint:
+POST /citations/doi
+
+Input:
+{
+"doi": "10.xxxx/xxxxx"
+}
+
+Behavior:
+
+* fetch metadata from Crossref
+* parse response
+* generate citation object
+* store citation in database
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BIBTEX IMPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create BibTeX upload/import support.
+
+Features:
+
+* upload .bib file
+* parse BibTeX entries
+* convert into citation records
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AUTO FORMATTING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate:
+
+* APA citations
+* IEEE citations
+
+Store formatted strings.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+RELATED PAPER SUGGESTIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Use lightweight keyword-based recommendation logic.
+
+Examples:
+If manuscript contains:
+
+* transformer
+  → suggest:
+  "Attention Is All You Need"
+
+* graph neural network
+  → suggest:
+  "Graph Attention Networks"
+
+No heavy semantic search required.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside manuscript workspace:
+
+Add collapsible Citation Manager sidebar.
+
+Features:
+
+* DOI input field
+* BibTeX upload button
+* bibliography preview
+* citation cards
+* insert citation button
+
+Each citation card should show:
+
+* title
+* authors
+* year
+* APA preview
+* IEEE preview
+
+━━━━━━━━━━━━━━━━━━━━━━━
+INSERTION FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+User enters DOI
+→ backend fetches citation
+→ citation stored
+→ frontend displays citation card
+→ user clicks Insert Citation
+→ citation inserted into manuscript editor
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AUTO BIBLIOGRAPHY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+At manuscript bottom:
+
+* auto-generate References section
+* dynamically update references list
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — CONTRIBUTOR TRACKING & AUTHORSHIP ANALYTICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement contribution analytics across:
+
+* manuscripts
+* datasets
+* experiments
+* peer reviews/comments
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create Contribution model:
+
+Fields:
+
+* id
+* user_id
+* project_id
+* action_type
+* contribution_score
+* metadata
+* timestamp
+
+━━━━━━━━━━━━━━━━━━━━━━━
+TRACK CONTRIBUTIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Automatically log:
+
+* manuscript edits
+* dataset uploads
+* experiment additions
+* citation additions
+* peer review actions
+* comments/replies
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CONTRIBUTION SCORING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement lightweight scoring system.
+
+Example:
+
+* manuscript edit = +5
+* dataset upload = +10
+* experiment entry = +8
+* peer review = +6
+
+Calculate:
+
+* total contribution score
+* contribution percentage
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AUTHORSHIP ANALYTICS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate:
+
+* collaborator rankings
+* contribution percentages
+* authorship leaderboard
+
+Example:
+Akshita → 43%
+Rahul → 31%
+Navya → 26%
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create Contribution Dashboard page.
+
+Add:
+
+* pie charts
+* contributor leaderboard
+* activity feed
+* timeline visualization
+
+Use:
+
+* Recharts
+* Tailwind
+* shadcn UI
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AUTHORSHIP REPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Add:
+"Generate Authorship Report" button
+
+Generate downloadable report containing:
+
+* collaborator names
+* roles
+* contribution percentages
+* activity summaries
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UI/UX REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT:
+Make the project FEEL advanced and collaborative.
+
+Use:
+
+* smooth animations
+* glassmorphism cards
+* gradients
+* live indicators
+* collaborative presence badges
+* realtime status animations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE + API INTEGRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure:
+
+* all frontend features connect to backend APIs
+* JWT authentication works for websocket + REST routes
+* collaboration permissions remain enforced
+
+Viewers:
+
+* read-only
+
+Editors:
+
+* can edit manuscripts/citations
+
+Owners:
+
+* full access
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT IMPLEMENTATION NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+* Do NOT break existing auth system
+* Do NOT break current collaboration/invite logic
+* Keep architecture modular
+* Separate websocket logic cleanly
+* Use reusable frontend components
+* Maintain current Tailwind/shadcn design system
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL EXPECTED DEMO FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+User A edits manuscript
+→ User B sees live updates instantly
+→ autosave triggers
+→ contribution analytics update
+→ citations inserted dynamically
+→ bibliography auto-generates
+→ authorship dashboard updates in realtime
+
+All features must work together end-to-end.
