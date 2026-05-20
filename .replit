@@ -1,6 +1,7 @@
 modules = ["nodejs-20", "web", "python-3.11"]
 [agent]
 expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
@@ -66,3 +67,8 @@ externalPort = 3001
 [[ports]]
 localPort = 8000
 externalPort = 8000
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET_KEY = "e5bfcb84c5f55fd25bacb760e95e295345529462a2d632818bb82a943f594c4f"
