@@ -1,0 +1,126 @@
+ix the collaborative chat system so it supports BOTH:
+
+Real-time messaging using WebSockets
+Persistent chat history stored in database
+
+Currently messages only appear live and do not persist properly.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED CHAT BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━
+
+When a user sends a message:
+
+message should instantly appear for online collaborators via WebSocket
+message should ALSO be saved permanently in database
+
+When users reopen the project later:
+
+previous messages should load automatically
+chat history should persist across refresh/relogin
+
+Chat should behave similar to:
+
+Slack
+Discord
+Microsoft Teams
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Use FastAPI + SQLAlchemy.
+
+Ensure Message model exists with:
+
+id
+project_id
+user_id
+content
+timestamp
+
+Relationships:
+
+linked to Project
+linked to User
+
+━━━━━━━━━━━━━━━━━━━━━━━
+MESSAGE FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+User sends message from frontend
+Backend websocket handler:
+receives message
+saves message to database
+broadcasts message to connected users
+On project open:
+Frontend should call:
+GET /projects/{project_id}/messages
+
+Return:
+
+previous chat history
+sender name
+timestamps
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REQUIRED API ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /projects/{project_id}/messages
+
+fetch stored chat history
+
+POST /projects/{project_id}/messages
+(optional fallback REST endpoint)
+
+WebSocket:
+/ws/projects/{project_id}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside chat sidebar:
+
+On component mount:
+fetch previous messages from backend
+display them before websocket messages
+When websocket receives new message:
+append message live
+Chat UI should show:
+sender name
+timestamp
+message content
+Add:
+auto-scroll to latest message
+loading state
+reconnect websocket if disconnected
+Fix current issue where input shows:
+"Connecting..."
+
+Input should become enabled after websocket connects.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ONLINE USERS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Keep online collaborator tracking:
+
+show online count
+show active users
+
+But ensure:
+offline users can still see previous messages later.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT remove realtime websocket functionality.
+
+Goal is:
+Realtime + Persistent chat together.
+
+Keep current Tailwind/shadcn styling.
+Do not break auth or collaboration logic.

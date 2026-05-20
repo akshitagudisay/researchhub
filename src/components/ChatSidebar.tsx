@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { type ChatMessage, type OnlineUser, useProjectChat } from "@/hooks/useProjectChat";
 import { Button } from "@/components/ui/button";
-import { Send, Wifi, WifiOff, X, MessageSquare } from "lucide-react";
+import { Send, Wifi, WifiOff, X, MessageSquare, Loader2 } from "lucide-react";
 
 interface ChatSidebarProps {
   projectId: number;
@@ -43,28 +43,51 @@ function formatTime(iso: string): string {
   if (isToday) {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
-  return d.toLocaleDateString([], { month: "short", day: "numeric" }) +
-    " " +
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    d.toLocaleDateString([], { month: "short", day: "numeric" }) +
+    " · " +
+    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 function groupMessages(messages: ChatMessage[]) {
-  const groups: { senderId: number; senderEmail: string; messages: ChatMessage[] }[] = [];
+  const groups: {
+    senderId: number;
+    senderEmail: string;
+    messages: ChatMessage[];
+  }[] = [];
   for (const msg of messages) {
     const last = groups[groups.length - 1];
     if (last && last.senderId === msg.sender_id) {
       last.messages.push(msg);
     } else {
-      groups.push({ senderId: msg.sender_id, senderEmail: msg.sender_email, messages: [msg] });
+      groups.push({
+        senderId: msg.sender_id,
+        senderEmail: msg.sender_email,
+        messages: [msg],
+      });
     }
   }
   return groups;
 }
 
-export default function ChatSidebar({ projectId, onClose, onUnreadChange }: ChatSidebarProps) {
+export default function ChatSidebar({
+  projectId,
+  onClose,
+  onUnreadChange,
+}: ChatSidebarProps) {
   const { token, user } = useAuth();
-  const { messages, onlineUsers, typingUsers, isConnected, sendMessage, sendTyping, unreadCount, markRead } =
-    useProjectChat({ projectId, token, enabled: true });
+  const {
+    messages,
+    onlineUsers,
+    typingUsers,
+    isConnected,
+    isLoadingHistory,
+    sendMessage,
+    sendTyping,
+    unreadCount,
+    markRead,
+  } = useProjectChat({ projectId, token, enabled: true });
 
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -79,6 +102,7 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
     onUnreadChange(unreadCount);
   }, [unreadCount, onUnreadChange]);
 
+  // Auto-scroll on new messages or typing indicator
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typingUsers]);
@@ -97,13 +121,13 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
 
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || !isConnected) return;
     clearTimeout(typingTimerRef.current!);
     wasTypingRef.current = false;
     sendTyping(false);
     sendMessage(text);
     setInput("");
-  }, [input, sendMessage, sendTyping]);
+  }, [input, isConnected, sendMessage, sendTyping]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -123,9 +147,13 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
           <MessageSquare className="w-4 h-4 text-primary" />
           <span className="font-semibold text-sm text-foreground">Team Chat</span>
           {isConnected ? (
-            <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+            <span title="Connected" className="flex items-center gap-1">
+              <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+            </span>
           ) : (
-            <WifiOff className="w-3.5 h-3.5 text-muted-foreground animate-pulse" />
+            <span title="Reconnecting…" className="flex items-center gap-1">
+              <WifiOff className="w-3.5 h-3.5 text-muted-foreground animate-pulse" />
+            </span>
           )}
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
@@ -140,14 +168,12 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
         </p>
         <div className="flex flex-wrap gap-1.5">
           {onlineUsers.length === 0 && (
-            <span className="text-[11px] text-muted-foreground">No one else online</span>
+            <span className="text-[11px] text-muted-foreground italic">
+              {isConnected ? "Only you" : "Connecting…"}
+            </span>
           )}
           {onlineUsers.map((u) => (
-            <div
-              key={u.id}
-              title={u.email}
-              className="flex items-center gap-1"
-            >
+            <div key={u.id} title={u.email} className="flex items-center gap-1">
               <div
                 className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${avatarColor(u.email)}`}
               >
@@ -164,54 +190,72 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 min-h-0">
-        {messages.length === 0 && (
+        {isLoadingHistory ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="text-xs">Loading messages…</span>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="text-center py-8">
             <MessageSquare className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-xs text-muted-foreground">No messages yet. Say hello!</p>
+            <p className="text-xs text-muted-foreground">
+              No messages yet. Say hello!
+            </p>
           </div>
-        )}
-
-        {grouped.map((group, gi) => {
-          const isMe = group.senderId === user?.id;
-          return (
-            <div key={gi} className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-              {/* Avatar */}
+        ) : (
+          grouped.map((group, gi) => {
+            const isMe = group.senderId === user?.id;
+            return (
               <div
-                title={group.senderEmail}
-                className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold self-end ${avatarColor(group.senderEmail)}`}
+                key={gi}
+                className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}
               >
-                {getInitials(group.senderEmail)}
-              </div>
+                {/* Avatar */}
+                <div
+                  title={group.senderEmail}
+                  className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold self-end ${avatarColor(group.senderEmail)}`}
+                >
+                  {getInitials(group.senderEmail)}
+                </div>
 
-              {/* Bubble group */}
-              <div className={`flex flex-col gap-0.5 max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
-                {!isMe && (
-                  <span className="text-[10px] text-muted-foreground px-1 truncate max-w-full">
-                    {group.senderEmail.split("@")[0]}
-                  </span>
-                )}
-                {group.messages.map((msg, mi) => (
-                  <div key={msg.id} className="flex flex-col gap-0.5">
-                    <div
-                      className={`px-3 py-1.5 rounded-2xl text-sm leading-relaxed break-words ${
-                        isMe
-                          ? "bg-primary text-primary-foreground rounded-br-sm"
-                          : "bg-muted text-foreground rounded-bl-sm"
-                      }`}
-                    >
-                      {msg.content}
+                {/* Bubble group */}
+                <div
+                  className={`flex flex-col gap-0.5 max-w-[75%] ${
+                    isMe ? "items-end" : "items-start"
+                  }`}
+                >
+                  {!isMe && (
+                    <span className="text-[10px] text-muted-foreground px-1 truncate max-w-full">
+                      {group.senderEmail.split("@")[0]}
+                    </span>
+                  )}
+                  {group.messages.map((msg, mi) => (
+                    <div key={msg.id} className="flex flex-col gap-0.5">
+                      <div
+                        className={`px-3 py-1.5 rounded-2xl text-sm leading-relaxed break-words ${
+                          isMe
+                            ? "bg-primary text-primary-foreground rounded-br-sm"
+                            : "bg-muted text-foreground rounded-bl-sm"
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                      {mi === group.messages.length - 1 && (
+                        <span
+                          className={`text-[10px] text-muted-foreground px-1 ${
+                            isMe ? "text-right" : "text-left"
+                          }`}
+                        >
+                          {formatTime(msg.created_at)}
+                        </span>
+                      )}
                     </div>
-                    {mi === group.messages.length - 1 && (
-                      <span className={`text-[10px] text-muted-foreground px-1 ${isMe ? "text-right" : "text-left"}`}>
-                        {formatTime(msg.created_at)}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
 
         {/* Typing indicator */}
         {otherTyping.length > 0 && (
@@ -238,6 +282,12 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
 
       {/* Input */}
       <div className="px-3 py-3 border-t flex-shrink-0 bg-card">
+        {!isConnected && (
+          <div className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
+            <WifiOff className="w-3 h-3 flex-shrink-0" />
+            <span>Reconnecting… messages will send when connected.</span>
+          </div>
+        )}
         <div className="flex gap-2 items-end">
           <textarea
             value={input}
@@ -246,8 +296,8 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
               handleTyping();
             }}
             onKeyDown={handleKeyDown}
-            placeholder={isConnected ? "Message…" : "Connecting…"}
-            disabled={!isConnected}
+            placeholder={isLoadingHistory ? "Loading…" : "Message teammates…"}
+            disabled={isLoadingHistory}
             rows={1}
             className="flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 min-h-[38px] max-h-[120px] overflow-y-auto"
             style={{ fieldSizing: "content" } as React.CSSProperties}
@@ -256,7 +306,7 @@ export default function ChatSidebar({ projectId, onClose, onUnreadChange }: Chat
             size="icon"
             className="h-9 w-9 rounded-xl flex-shrink-0"
             onClick={handleSend}
-            disabled={!isConnected || !input.trim()}
+            disabled={!isConnected || !input.trim() || isLoadingHistory}
           >
             <Send className="w-4 h-4" />
           </Button>

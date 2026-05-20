@@ -25,6 +25,7 @@ interface UseProjectChatResult {
   onlineUsers: OnlineUser[];
   typingUsers: OnlineUser[];
   isConnected: boolean;
+  isLoadingHistory: boolean;
   sendMessage: (content: string) => void;
   sendTyping: (isTyping: boolean) => void;
   unreadCount: number;
@@ -43,6 +44,7 @@ export function useProjectChat({
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<OnlineUser[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isChatVisible, setIsChatVisible] = useState(false);
 
@@ -51,9 +53,38 @@ export function useProjectChat({
   const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMounted = useRef(true);
   const visibleRef = useRef(isChatVisible);
+  // Track highest known message id to avoid duplicates when WS sends history
+  const highestIdRef = useRef(0);
 
   visibleRef.current = isChatVisible;
 
+  // ── REST history fetch (primary, runs on mount) ──────────────────────────
+  useEffect(() => {
+    if (!token || !enabled) {
+      setIsLoadingHistory(false);
+      return;
+    }
+
+    setIsLoadingHistory(true);
+
+    fetch(`/api/projects/${projectId}/messages?token=${token}&limit=100`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: ChatMessage[]) => {
+        if (!isMounted.current) return;
+        setMessages(data);
+        if (data.length > 0) {
+          highestIdRef.current = Math.max(...data.map((m) => m.id));
+        }
+      })
+      .catch(() => {
+        // silently fail — WS history will fill in
+      })
+      .finally(() => {
+        if (isMounted.current) setIsLoadingHistory(false);
+      });
+  }, [projectId, token, enabled]);
+
+  // ── WebSocket connection ──────────────────────────────────────────────────
   const buildWsUrl = useCallback(() => {
     if (!token) return null;
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -86,7 +117,19 @@ export function useProjectChat({
         const data = JSON.parse(event.data);
 
         if (data.type === "history") {
-          setMessages(data.messages ?? []);
+          // WS history: only add messages we don't already have from REST
+          const incoming: ChatMessage[] = data.messages ?? [];
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newOnes = incoming.filter((m) => !existingIds.has(m.id));
+            if (newOnes.length === 0) return prev;
+            const merged = [...prev, ...newOnes].sort(
+              (a, b) =>
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+            highestIdRef.current = Math.max(highestIdRef.current, ...merged.map((m) => m.id));
+            return merged;
+          });
         } else if (data.type === "message") {
           const msg: ChatMessage = {
             id: data.id,
@@ -98,6 +141,7 @@ export function useProjectChat({
           };
           setMessages((prev) => {
             if (prev.some((m) => m.id === msg.id)) return prev;
+            highestIdRef.current = Math.max(highestIdRef.current, msg.id);
             return [...prev, msg];
           });
           if (!visibleRef.current) {
@@ -108,16 +152,18 @@ export function useProjectChat({
         } else if (data.type === "typing") {
           setTypingUsers(data.users ?? []);
         }
+        // pong — no-op
       } catch {
-        // ignore parse errors
+        // ignore JSON parse errors
       }
     };
 
     ws.onclose = () => {
       if (!isMounted.current) return;
       setIsConnected(false);
+      setOnlineUsers([]);
       clearInterval(pingTimer.current!);
-      if (enabled) {
+      if (enabled && isMounted.current) {
         reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
       }
     };
@@ -166,6 +212,7 @@ export function useProjectChat({
     onlineUsers,
     typingUsers,
     isConnected,
+    isLoadingHistory,
     sendMessage,
     sendTyping,
     unreadCount,
