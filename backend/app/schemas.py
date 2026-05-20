@@ -211,3 +211,16 @@ class AccessRequestRead(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Chat ──────────────────────────────────────────────────────────────────────
+
+class ChatMessageRead(BaseModel):
+    id: int
+    project_id: int
+    sender_id: int
+    sender_email: str
+    content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

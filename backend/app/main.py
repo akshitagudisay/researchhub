@@ -17,11 +17,13 @@ from .schemas import (
     AccessRequestCreate, RequestReviewPayload, AccessRequestRead,
 )
 from .routes.invite import router as invite_router
+from .routes.chat import router as chat_router
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 app.include_router(invite_router)
+app.include_router(chat_router)
 
 app.add_middleware(
     CORSMiddleware,

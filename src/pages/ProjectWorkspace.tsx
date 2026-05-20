@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, type ApiProject } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import ManuscriptEditor from "@/components/ManuscriptEditor";
 import DatasetManager from "@/components/DatasetManager";
 import ExperimentLogs from "@/components/ExperimentLogs";
 import CollaboratorsPanel from "@/components/CollaboratorsPanel";
+import ChatSidebar from "@/components/ChatSidebar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Database, FlaskConical, Users, ArrowLeft, Eye } from "lucide-react";
+import { FileText, Database, FlaskConical, Users, ArrowLeft, Eye, MessageSquare } from "lucide-react";
 
 type Tab = "manuscript" | "datasets" | "experiments" | "collaborators";
 
@@ -24,6 +26,8 @@ export default function ProjectWorkspace() {
   const navigate = useNavigate();
   const projectId = Number(id);
   const [activeTab, setActiveTab] = useState<Tab>("manuscript");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
 
   const { data: project, isLoading } = useQuery<ApiProject>({
     queryKey: ["/projects", projectId],
@@ -45,9 +49,22 @@ export default function ProjectWorkspace() {
   const role = roleData?.role ?? "owner";
   const canWrite = role === "owner" || role === "editor";
 
+  const handleUnreadChange = useCallback((count: number) => {
+    if (!chatOpen) setUnread(count);
+  }, [chatOpen]);
+
+  const openChat = () => {
+    setUnread(0);
+    setChatOpen(true);
+  };
+
+  const closeChat = () => {
+    setChatOpen(false);
+  };
+
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
+      {/* Left Sidebar */}
       <aside className="w-56 border-r bg-card flex flex-col flex-shrink-0">
         <div className="p-4 border-b">
           <Button
@@ -112,6 +129,22 @@ export default function ProjectWorkspace() {
               <Users className="w-3 h-3" /> Editor
             </span>
           )}
+
+          {/* Chat toggle button */}
+          <Button
+            variant={chatOpen ? "default" : "outline"}
+            size="sm"
+            onClick={chatOpen ? closeChat : openChat}
+            className="relative gap-1.5 h-8"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span className="text-xs">Chat</span>
+            {!chatOpen && unread > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
+          </Button>
         </header>
 
         <main className="flex-1 overflow-auto">
@@ -129,6 +162,15 @@ export default function ProjectWorkspace() {
           )}
         </main>
       </div>
+
+      {/* Right Chat Sidebar */}
+      {chatOpen && (
+        <ChatSidebar
+          projectId={projectId}
+          onClose={closeChat}
+          onUnreadChange={handleUnreadChange}
+        />
+      )}
     </div>
   );
 }
