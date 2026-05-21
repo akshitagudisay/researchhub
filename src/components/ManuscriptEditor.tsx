@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, type ApiManuscriptVersion } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useManuscriptCollaboration } from "@/hooks/useManuscriptCollaboration";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Save, History, ChevronRight, Eye, Wifi, WifiOff,
   CheckCircle2, Clock, AlertTriangle, BookOpen, Users,
+  RotateCcw, Loader2, X, AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CitationManager from "./CitationManager";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ManuscriptContent {
   abstract: string;
@@ -21,11 +24,19 @@ interface ManuscriptContent {
   conclusion: string;
 }
 
-const EMPTY: ManuscriptContent = {
+const EMPTY_CONTENT: ManuscriptContent = {
   abstract: "", introduction: "", methodology: "", results: "", conclusion: "",
 };
 
-const SECTION_COLORS: Record<string, string> = {
+const SECTIONS: { key: keyof ManuscriptContent; label: string }[] = [
+  { key: "abstract", label: "Abstract" },
+  { key: "introduction", label: "Introduction" },
+  { key: "methodology", label: "Methodology" },
+  { key: "results", label: "Results" },
+  { key: "conclusion", label: "Conclusion" },
+];
+
+const SECTION_BAR_COLOR: Record<string, string> = {
   abstract: "bg-violet-400",
   introduction: "bg-blue-400",
   methodology: "bg-teal-400",
@@ -41,24 +52,14 @@ const SECTION_BADGE: Record<string, string> = {
   conclusion: "bg-rose-100 text-rose-700 border-rose-200",
 };
 
-const sections: { key: keyof ManuscriptContent; label: string }[] = [
-  { key: "abstract", label: "Abstract" },
-  { key: "introduction", label: "Introduction" },
-  { key: "methodology", label: "Methodology" },
-  { key: "results", label: "Results" },
-  { key: "conclusion", label: "Conclusion" },
-];
-
-interface VersionEntry {
-  timestamp: string;
-  label: string;
-  content: ManuscriptContent;
-}
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface Props {
   projectId: number;
   canWrite?: boolean;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getInitials(email: string) {
   return email.slice(0, 2).toUpperCase();
@@ -71,151 +72,408 @@ function avatarColor(email: string) {
   return palette[Math.abs(h) % palette.length];
 }
 
-const AUTOSAVE_DEBOUNCE_MS = 2000;
+function parseContent(raw: string): ManuscriptContent {
+  try {
+    const p = JSON.parse(raw);
+    return {
+      abstract: p.abstract ?? "",
+      introduction: p.introduction ?? "",
+      methodology: p.methodology ?? "",
+      results: p.results ?? "",
+      conclusion: p.conclusion ?? "",
+    };
+  } catch {
+    return { ...EMPTY_CONTENT };
+  }
+}
+
+function hasAnyContent(c: ManuscriptContent): boolean {
+  return Object.values(c).some(v => v.trim().length > 0);
+}
+
+function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// ── Version History Panel ─────────────────────────────────────────────────────
+
+function VersionHistoryPanel({
+  projectId,
+  canWrite,
+  onRestore,
+  onClose,
+}: {
+  projectId: number;
+  canWrite: boolean;
+  onRestore: (content: string) => void;
+  onClose: () => void;
+}) {
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+
+  const { data: versions, isLoading, refetch, isError } = useQuery<ApiManuscriptVersion[]>({
+    queryKey: ["/projects", projectId, "manuscript", "history"],
+    queryFn: () => api.getVersionHistory(projectId),
+    staleTime: 0,
+  });
+
+  return (
+    <div className="w-64 border-l bg-card flex flex-col flex-shrink-0 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
+        <h3 className="font-semibold text-sm text-foreground">Version History</h3>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {isLoading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map(i => <Skeleton key={i} className="h-20 rounded-lg" />)}
+          </div>
+        ) : isError ? (
+          <div className="text-center py-6">
+            <AlertCircle className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground">Failed to load history.</p>
+            <button onClick={() => refetch()} className="text-xs text-primary mt-1 hover:underline">
+              Retry
+            </button>
+          </div>
+        ) : !versions || versions.length === 0 ? (
+          <div className="text-center py-6">
+            <History className="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground">No saved versions yet.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Click "Save Version" to create a snapshot.
+            </p>
+          </div>
+        ) : (
+          versions.map((v, i) => (
+            <div key={v.id} className="rounded-lg border p-3 hover:bg-muted/30 transition-colors">
+              <div className="flex items-start justify-between gap-1 mb-1">
+                <span className="text-xs font-semibold text-primary">v{versions.length - i}</span>
+                {v.saved_by_email && (
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                    {v.saved_by_email.split("@")[0]}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground mb-1.5">
+                {formatTimestamp(v.created_at)}
+              </p>
+              {v.preview && (
+                <p className="text-[11px] text-foreground line-clamp-2 leading-snug mb-2">
+                  {v.preview}…
+                </p>
+              )}
+              {canWrite && (
+                confirmId === v.id ? (
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      className="h-6 text-[10px] px-2 flex-1"
+                      onClick={() => { onRestore(v.content); setConfirmId(null); }}
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => setConfirmId(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(v.id)}
+                    className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Restore this version
+                  </button>
+                )
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── AutoReferences Bar ────────────────────────────────────────────────────────
+
+function AutoReferences({ projectId }: { projectId: number }) {
+  const { data: citations } = useQuery({
+    queryKey: ["/projects", projectId, "citations"],
+    queryFn: () => api.getCitations(projectId),
+    enabled: !!projectId,
+  });
+
+  if (!citations || citations.length === 0) return null;
+
+  return (
+    <details className="text-xs">
+      <summary className="text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors font-medium">
+        References ({citations.length}) — auto-generated
+      </summary>
+      <ol className="mt-2 space-y-1 list-decimal list-inside text-muted-foreground leading-relaxed pl-2">
+        {citations.map(c => (
+          <li key={c.id}>
+            <span className="text-foreground">
+              {c.formatted_apa ?? `${c.authors.join(", ")} (${c.year}). ${c.title}.`}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
+// ── Main Editor ───────────────────────────────────────────────────────────────
 
 export default function ManuscriptEditor({ projectId, canWrite = true }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { token } = useAuth();
 
-  const [content, setContent] = useState<ManuscriptContent>(EMPTY);
-  const [versions, setVersions] = useState<VersionEntry[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showCitations, setShowCitations] = useState(false);
+  // Editor state
+  const [content, setContent] = useState<ManuscriptContent>(EMPTY_CONTENT);
+  const contentRef = useRef<ManuscriptContent>(EMPTY_CONTENT); // mirrors state; used in callbacks
   const [activeSection, setActiveSection] = useState<keyof ManuscriptContent>("abstract");
 
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSentContent = useRef<string>("");
+  // UI state
+  const [showHistory, setShowHistory] = useState(false);
+  const [showCitations, setShowCitations] = useState(false);
+
+  // Autosave
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const lastSavedJsonRef = useRef<string>("");
+  const restSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsEditTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Version saving
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
+
+  // Init guard — prevents double-init on re-renders
   const initialized = useRef(false);
 
-  const collab = useManuscriptCollaboration({
-    projectId,
-    token,
-    enabled: true,
-  });
+  // ── Real-time collaboration ──────────────────────────────────────────────
+  const collab = useManuscriptCollaboration({ projectId, token, enabled: true });
 
+  // ── Load initial manuscript ──────────────────────────────────────────────
   const { data: manuscript, isLoading } = useQuery({
     queryKey: ["/projects", projectId, "manuscript"],
     queryFn: () => api.getManuscript(projectId),
     enabled: !!projectId,
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
-  // Load initial manuscript content from REST
+  // Initialize editor once after the initial fetch completes
   useEffect(() => {
-    if (manuscript?.content && !initialized.current) {
-      try {
-        const parsed = JSON.parse(manuscript.content);
-        setContent({
-          abstract: parsed.abstract ?? "",
-          introduction: parsed.introduction ?? "",
-          methodology: parsed.methodology ?? "",
-          results: parsed.results ?? "",
-          conclusion: parsed.conclusion ?? "",
-        });
-        initialized.current = true;
-      } catch {
-        setContent(EMPTY);
-        initialized.current = true;
-      }
-    } else if (manuscript === null && !initialized.current) {
-      initialized.current = true;
-    }
-  }, [manuscript]);
+    if (initialized.current || isLoading) return;
+    initialized.current = true;
 
-  // Apply incoming edits from WS (other users)
+    if (manuscript?.content) {
+      const loaded = parseContent(manuscript.content);
+      setContent(loaded);
+      contentRef.current = loaded;
+      lastSavedJsonRef.current = manuscript.content; // mark as already persisted
+    }
+    // If null/undefined, editor stays empty — that's correct
+  }, [isLoading, manuscript]);
+
+  // Cleanup timers on unmount
+  useEffect(() => () => {
+    clearTimeout(restSaveTimerRef.current!);
+    clearTimeout(wsEditTimerRef.current!);
+  }, []);
+
+  // ── Apply incoming WS edits from other collaborators ─────────────────────
   useEffect(() => {
     if (!collab.incomingEdit) return;
-    const { section, content: newContent } = collab.incomingEdit;
+    const { section, content: newText } = collab.incomingEdit;
+    // Only apply if user is NOT currently focused on that section (avoid clobbering their typing)
     if (section !== activeSection) {
-      setContent(prev => ({ ...prev, [section]: newContent }));
+      const updated = { ...contentRef.current, [section]: newText };
+      setContent(updated);
+      contentRef.current = updated;
     }
     collab.clearIncomingEdit();
-  }, [collab.incomingEdit]);
+  }, [collab.incomingEdit, activeSection]);
 
-  const saveMutation = useMutation({
-    mutationFn: (c: ManuscriptContent) =>
-      api.saveManuscript(projectId, JSON.stringify(c)),
-    onSuccess: (saved) => {
-      queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "manuscript"] });
-      const entry: VersionEntry = {
-        timestamp: new Date(saved.created_at).toLocaleString("en-US", {
-          month: "short", day: "numeric", year: "numeric",
-          hour: "2-digit", minute: "2-digit",
-        }),
-        label: "Manual save",
-        content: { ...content },
-      };
-      setVersions(prev => [entry, ...prev]);
-      toast({ title: "Saved", description: "Version saved successfully." });
-    },
-  });
+  // ── REST autosave (persistence backbone) ─────────────────────────────────
+  const scheduleRestAutosave = useCallback((newContent: ManuscriptContent) => {
+    if (!canWrite || !initialized.current) return;
 
-  // Send WS edit with debounce for autosave
+    const json = JSON.stringify(newContent);
+
+    // Guard: never overwrite persisted content with all-empty content
+    if (!hasAnyContent(newContent)) return;
+
+    // Guard: no-op if nothing changed
+    if (json === lastSavedJsonRef.current) return;
+
+    clearTimeout(restSaveTimerRef.current!);
+    restSaveTimerRef.current = setTimeout(async () => {
+      // Re-check — user might have kept typing
+      const currentJson = JSON.stringify(contentRef.current);
+      if (currentJson === lastSavedJsonRef.current) return;
+
+      setSaveStatus("saving");
+      try {
+        await api.saveManuscript(projectId, currentJson);
+        lastSavedJsonRef.current = currentJson;
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus(s => s === "saved" ? "idle" : s), 3000);
+      } catch {
+        setSaveStatus("error");
+        setTimeout(() => setSaveStatus("idle"), 6000);
+      }
+    }, 4000); // 4-second debounce
+  }, [canWrite, projectId]);
+
+  // ── Content change handler ────────────────────────────────────────────────
   const handleContentChange = useCallback((section: keyof ManuscriptContent, value: string) => {
     if (!canWrite) return;
-    const updated = { ...content, [section]: value };
+    const updated = { ...contentRef.current, [section]: value };
     setContent(updated);
+    contentRef.current = updated;
 
-    clearTimeout(autosaveTimer.current!);
-    autosaveTimer.current = setTimeout(() => {
-      const serialized = JSON.stringify(updated[section]);
-      if (serialized !== lastSentContent.current) {
-        lastSentContent.current = serialized;
-        collab.sendEdit(section, value);
-      }
-    }, AUTOSAVE_DEBOUNCE_MS);
-  }, [content, canWrite, collab]);
+    // WS edit — 1.5s debounce, for real-time collab visibility
+    clearTimeout(wsEditTimerRef.current!);
+    wsEditTimerRef.current = setTimeout(() => {
+      collab.sendEdit(section, value);
+    }, 1500);
 
-  const handleSectionClick = (key: keyof ManuscriptContent) => {
-    if (activeSection !== key) {
+    // REST autosave — 4s debounce, for persistence
+    scheduleRestAutosave(updated);
+  }, [canWrite, collab, scheduleRestAutosave]);
+
+  // ── Section focus/blur ────────────────────────────────────────────────────
+  const handleSectionClick = useCallback((key: keyof ManuscriptContent) => {
+    if (key !== activeSection) {
       collab.sendSectionBlur(activeSection);
     }
     setActiveSection(key);
     collab.sendSectionFocus(key);
-  };
+  }, [activeSection, collab]);
 
+  // ── Insert citation into active section ───────────────────────────────────
   const handleInsertCitation = useCallback((citation: string) => {
     if (!canWrite) return;
-    setContent(prev => ({
-      ...prev,
-      [activeSection]: prev[activeSection] + "\n\n" + citation,
-    }));
-    collab.sendEdit(activeSection, content[activeSection] + "\n\n" + citation);
-  }, [activeSection, content, canWrite, collab]);
+    const current = contentRef.current;
+    const separator = current[activeSection].length > 0 ? "\n\n" : "";
+    const newText = current[activeSection] + separator + citation;
+    const updated = { ...current, [activeSection]: newText };
+    setContent(updated);
+    contentRef.current = updated;
+    collab.sendEdit(activeSection, newText);
+    scheduleRestAutosave(updated);
+  }, [activeSection, canWrite, collab, scheduleRestAutosave]);
 
-  // Who is editing which section
-  const sectionEditors: Record<string, { email: string }[]> = {};
-  for (const collab_ of collab.activeCollaborators) {
-    if (collab_.section) {
-      if (!sectionEditors[collab_.section]) sectionEditors[collab_.section] = [];
-      sectionEditors[collab_.section].push({ email: collab_.email });
+  // ── Save Version ──────────────────────────────────────────────────────────
+  const handleSaveVersion = useCallback(async () => {
+    if (!canWrite || isSavingVersion) return;
+
+    const current = contentRef.current;
+    if (!hasAnyContent(current)) {
+      toast({
+        title: "Nothing to save",
+        description: "Write some content before creating a version snapshot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingVersion(true);
+    setSaveStatus("saving");
+
+    try {
+      // Step 1: ensure latest content is persisted to DB
+      const json = JSON.stringify(current);
+      await api.saveManuscript(projectId, json);
+      lastSavedJsonRef.current = json;
+
+      // Step 2: create version snapshot from DB manuscript
+      await api.saveVersion(projectId);
+
+      // Step 3: invalidate history cache so it refetches
+      queryClient.invalidateQueries({
+        queryKey: ["/projects", projectId, "manuscript", "history"],
+      });
+
+      setSaveStatus("saved");
+      toast({ title: "Version saved", description: "Snapshot created successfully." });
+
+      // Open history panel so user sees their new version immediately
+      setShowHistory(true);
+      setShowCitations(false);
+    } catch (e: unknown) {
+      setSaveStatus("error");
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      toast({ title: "Save failed", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingVersion(false);
+      setTimeout(() => setSaveStatus(s => s !== "idle" ? "idle" : s), 3000);
+    }
+  }, [canWrite, isSavingVersion, projectId, queryClient, toast]);
+
+  // ── Restore version ───────────────────────────────────────────────────────
+  const handleRestoreVersion = useCallback((versionContent: string) => {
+    const restored = parseContent(versionContent);
+    setContent(restored);
+    contentRef.current = restored;
+    scheduleRestAutosave(restored);
+    setShowHistory(false);
+    toast({ title: "Version restored", description: "Content restored. Autosaving in a few seconds…" });
+  }, [scheduleRestAutosave, toast]);
+
+  // ── Collaborator → section mapping ────────────────────────────────────────
+  const sectionEditors: Record<string, string[]> = {};
+  for (const c of collab.activeCollaborators) {
+    if (c.section) {
+      sectionEditors[c.section] = [...(sectionEditors[c.section] ?? []), c.email];
     }
   }
 
-  const otherCollabs = collab.activeCollaborators;
+  // ── Current manuscript text for suggestions ───────────────────────────────
+  const currentManuscriptText = Object.values(contentRef.current).join(" ");
 
+  // ── Loading skeleton ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="flex-1 p-8 space-y-4">
+        <div className="flex gap-2">
+          {SECTIONS.map(s => <Skeleton key={s.key} className="h-8 w-24 rounded-md" />)}
+        </div>
         <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Main editor column */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* ── Main editor column ────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Active collaborators bar */}
-        {otherCollabs.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/5 to-transparent border-b text-xs">
+        {collab.activeCollaborators.length > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary/5 to-transparent border-b text-xs flex-shrink-0">
             <Users className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
             <span className="text-muted-foreground mr-1">Editing now:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {otherCollabs.map(u => (
-                <div key={u.user_id} className="flex items-center gap-1 bg-white border rounded-full px-2 py-0.5 shadow-sm">
+              {collab.activeCollaborators.map(u => (
+                <div
+                  key={u.user_id}
+                  className="flex items-center gap-1 bg-white border rounded-full px-2 py-0.5 shadow-sm"
+                >
                   <div className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold ${avatarColor(u.email)}`}>
                     {getInitials(u.email)}
                   </div>
@@ -228,7 +486,7 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
                 </div>
               ))}
             </div>
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto">
               {collab.isConnected
                 ? <Wifi className="w-3 h-3 text-emerald-500" />
                 : <WifiOff className="w-3 h-3 text-muted-foreground animate-pulse" />
@@ -239,12 +497,11 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
 
         {/* Section conflict warning */}
         {collab.sectionConflict && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
+          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 flex-shrink-0">
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
             <span>
-              <strong>{collab.sectionConflict.editor_email.split("@")[0]}</strong> is already
-              editing <strong>{collab.sectionConflict.section}</strong>. Both edits will be saved
-              — last write wins.
+              <strong>{collab.sectionConflict.editor_email.split("@")[0]}</strong> is editing{" "}
+              <strong>{collab.sectionConflict.section}</strong>. Both edits save — last write wins.
             </span>
             <button
               onClick={collab.clearConflict}
@@ -257,7 +514,7 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
 
         {/* Toolbar */}
         <div className="flex items-center gap-1 border-b px-4 py-2 bg-card overflow-x-auto flex-shrink-0">
-          {sections.map(s => {
+          {SECTIONS.map(s => {
             const editors = sectionEditors[s.key] ?? [];
             return (
               <button
@@ -272,19 +529,19 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
                 {s.label}
                 {editors.length > 0 && (
                   <span className="flex -space-x-1">
-                    {editors.slice(0, 2).map((e, i) => (
+                    {editors.slice(0, 2).map((email, i) => (
                       <div
                         key={i}
-                        title={`${e.email} is editing`}
-                        className={`w-3.5 h-3.5 rounded-full border border-white ${avatarColor(e.email)} flex items-center justify-center text-white text-[7px] font-bold`}
+                        title={`${email} is editing`}
+                        className={`w-3.5 h-3.5 rounded-full border border-white ${avatarColor(email)} flex items-center justify-center text-white text-[7px] font-bold`}
                       >
-                        {getInitials(e.email)}
+                        {getInitials(email)}
                       </div>
                     ))}
                   </span>
                 )}
                 {activeSection === s.key && (
-                  <span className={`absolute bottom-0 left-2 right-2 h-0.5 rounded-full ${SECTION_COLORS[s.key]}`} />
+                  <span className={`absolute bottom-0 left-2 right-2 h-0.5 rounded-full ${SECTION_BAR_COLOR[s.key]}`} />
                 )}
               </button>
             );
@@ -292,17 +549,21 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
 
           <div className="flex-1" />
 
-          {/* Autosave status */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
-            {collab.autosaveStatus === "saving" && (
-              <><Clock className="w-3 h-3 animate-spin" /> Saving…</>
+          {/* Save status indicator */}
+          <div className="flex items-center gap-1 text-xs mr-2">
+            {saveStatus === "saving" && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Clock className="w-3 h-3 animate-spin" /> Saving…
+              </span>
             )}
-            {collab.autosaveStatus === "saved" && (
-              <><CheckCircle2 className="w-3 h-3 text-emerald-500" /> <span className="text-emerald-600">Autosaved</span></>
+            {saveStatus === "saved" && (
+              <span className="flex items-center gap-1 text-emerald-600">
+                <CheckCircle2 className="w-3 h-3" /> Saved
+              </span>
             )}
-            {collab.autosaveStatus === "idle" && collab.lastSaved && (
-              <span className="text-muted-foreground/60 text-[10px]">
-                Saved {new Date(collab.lastSaved).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {saveStatus === "error" && (
+              <span className="flex items-center gap-1 text-red-500">
+                <AlertCircle className="w-3 h-3" /> Error saving
               </span>
             )}
           </div>
@@ -320,6 +581,7 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
             variant="outline"
             size="sm"
             onClick={() => { setShowHistory(!showHistory); setShowCitations(false); }}
+            className={showHistory ? "bg-primary/10 text-primary border-primary/30" : ""}
           >
             <History className="w-3.5 h-3.5 mr-1.5" /> History
           </Button>
@@ -327,11 +589,13 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
           {canWrite ? (
             <Button
               size="sm"
-              onClick={() => saveMutation.mutate(content)}
-              disabled={saveMutation.isPending}
+              onClick={handleSaveVersion}
+              disabled={isSavingVersion}
             >
-              <Save className="w-3.5 h-3.5 mr-1.5" />
-              {saveMutation.isPending ? "Saving…" : "Save Version"}
+              {isSavingVersion
+                ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Saving…</>
+                : <><Save className="w-3.5 h-3.5 mr-1.5" /> Save Version</>
+              }
             </Button>
           ) : (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
@@ -343,24 +607,22 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
         {/* Editor body */}
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 p-6 overflow-auto">
+            {/* Section heading */}
             <div className="flex items-center gap-2 mb-3">
-              <span className={`w-2 h-2 rounded-full ${SECTION_COLORS[activeSection]}`} />
+              <span className={`w-2 h-2 rounded-full ${SECTION_BAR_COLOR[activeSection]}`} />
               <h2 className="font-display text-xl font-semibold text-foreground capitalize">
                 {activeSection}
               </h2>
-              {(sectionEditors[activeSection] ?? []).length > 0 && (
-                <div className="flex items-center gap-1 ml-2">
-                  {(sectionEditors[activeSection] ?? []).map((e, i) => (
-                    <div key={i} className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <div className={`w-4 h-4 rounded-full ${avatarColor(e.email)} flex items-center justify-center text-white text-[8px] font-bold`}>
-                        {getInitials(e.email)}
-                      </div>
-                      <span>{e.email.split("@")[0]} is editing</span>
-                    </div>
-                  ))}
+              {(sectionEditors[activeSection] ?? []).map((email, i) => (
+                <div key={i} className="flex items-center gap-1 ml-1 text-xs text-muted-foreground">
+                  <div className={`w-4 h-4 rounded-full ${avatarColor(email)} flex items-center justify-center text-white text-[8px] font-bold`}>
+                    {getInitials(email)}
+                  </div>
+                  <span>{email.split("@")[0]} is editing</span>
                 </div>
-              )}
+              ))}
             </div>
+
             <Textarea
               value={content[activeSection]}
               onChange={e => handleContentChange(activeSection, e.target.value)}
@@ -368,41 +630,28 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
               className={`min-h-[400px] resize-none text-sm leading-relaxed border-none shadow-none focus-visible:ring-0 p-0 bg-transparent ${
                 !canWrite ? "cursor-default select-text text-muted-foreground" : ""
               }`}
-              placeholder={canWrite ? `Write your ${activeSection} here…` : `No ${activeSection} written yet.`}
+              placeholder={
+                canWrite
+                  ? `Write your ${activeSection} here…`
+                  : `No ${activeSection} written yet.`
+              }
             />
           </div>
 
-          {/* Version history panel */}
+          {/* Version History panel */}
           {showHistory && (
-            <div className="w-64 border-l bg-card p-4 overflow-auto flex-shrink-0">
-              <h3 className="font-display font-semibold text-foreground mb-4 text-sm">Version History</h3>
-              {versions.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No saved versions yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {versions.map((v, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { if (canWrite) setContent({ ...v.content }); setShowHistory(false); }}
-                      className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-primary">v{versions.length - i}</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      <p className="text-xs font-medium text-foreground mt-1">{v.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{v.timestamp}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <VersionHistoryPanel
+              projectId={projectId}
+              canWrite={canWrite}
+              onRestore={handleRestoreVersion}
+              onClose={() => setShowHistory(false)}
+            />
           )}
         </div>
 
-        {/* Auto-generated references section */}
+        {/* Auto-generated references footer */}
         <div className="border-t px-6 py-3 bg-muted/20 flex-shrink-0">
-          <AutoReferences projectId={projectId} onInsert={handleInsertCitation} canWrite={canWrite} />
+          <AutoReferences projectId={projectId} />
         </div>
       </div>
 
@@ -413,33 +662,9 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
           canWrite={canWrite}
           onInsert={handleInsertCitation}
           onClose={() => setShowCitations(false)}
+          currentManuscriptText={currentManuscriptText}
         />
       )}
     </div>
-  );
-}
-
-function AutoReferences({ projectId, onInsert, canWrite }: { projectId: number; onInsert: (s: string) => void; canWrite: boolean }) {
-  const { data: citations } = useQuery({
-    queryKey: ["/projects", projectId, "citations"],
-    queryFn: () => api.getCitations(projectId),
-    enabled: !!projectId,
-  });
-
-  if (!citations || citations.length === 0) return null;
-
-  return (
-    <details className="text-xs">
-      <summary className="text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors font-medium">
-        References ({citations.length}) — auto-generated
-      </summary>
-      <ol className="mt-2 space-y-1 list-decimal list-inside text-muted-foreground leading-relaxed pl-2">
-        {citations.map((c, i) => (
-          <li key={c.id}>
-            <span className="text-foreground">{c.formatted_apa ?? `${c.authors.join(", ")} (${c.year}). ${c.title}.`}</span>
-          </li>
-        ))}
-      </ol>
-    </details>
   );
 }

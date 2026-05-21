@@ -306,6 +306,72 @@ def delete_manuscript(
     db.commit()
 
 
+# ── Manuscript Versions ───────────────────────────────────────────────────────
+
+def _version_to_dict(v: models.ManuscriptVersion, db: Session) -> dict:
+    saver = db.query(models.User).filter(models.User.id == v.saved_by).first() if v.saved_by else None
+    try:
+        content_dict = json.loads(v.content)
+        preview_text = next(
+            (content_dict.get(s, "") for s in ["abstract", "introduction", "methodology", "results", "conclusion"]
+             if content_dict.get(s, "").strip()),
+            "",
+        )
+        preview = preview_text[:150].strip()
+    except Exception:
+        preview = ""
+    return {
+        "id": v.id,
+        "manuscript_id": v.manuscript_id,
+        "content": v.content,
+        "saved_by": v.saved_by,
+        "saved_by_email": saver.email if saver else None,
+        "preview": preview,
+        "created_at": v.created_at.isoformat(),
+    }
+
+
+@app.post("/projects/{project_id}/manuscript/version", status_code=201)
+def save_manuscript_version(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(project_id, current_user, db)
+    _require_write_access(project, current_user, db)
+    manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
+    if not manuscript:
+        raise HTTPException(status_code=404, detail="No manuscript found — save content first")
+    version = models.ManuscriptVersion(
+        manuscript_id=manuscript.id,
+        content=manuscript.content,
+        saved_by=current_user.id,
+    )
+    db.add(version)
+    db.commit()
+    db.refresh(version)
+    return _version_to_dict(version, db)
+
+
+@app.get("/projects/{project_id}/manuscript/history")
+def get_manuscript_history(
+    project_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_project_or_404(project_id, current_user, db)
+    manuscript = db.query(models.Manuscript).filter(models.Manuscript.project_id == project_id).first()
+    if not manuscript:
+        return []
+    versions = (
+        db.query(models.ManuscriptVersion)
+        .filter(models.ManuscriptVersion.manuscript_id == manuscript.id)
+        .order_by(models.ManuscriptVersion.created_at.desc())
+        .all()
+    )
+    return [_version_to_dict(v, db) for v in versions]
+
+
 # ── Datasets ──────────────────────────────────────────────────────────────────
 
 @app.get("/projects/{project_id}/datasets", response_model=List[DatasetRead])

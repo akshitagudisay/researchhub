@@ -116,6 +116,16 @@ export interface ApiContribution {
   timestamp: string;
 }
 
+export interface ApiManuscriptVersion {
+  id: number;
+  manuscript_id: number;
+  content: string;
+  saved_by?: number | null;
+  saved_by_email?: string | null;
+  preview?: string | null;
+  created_at: string;
+}
+
 export interface ApiContributionSummary {
   contributors: {
     user_id: number;
@@ -293,6 +303,17 @@ export const api = {
     request<void>(`/projects/${projectId}/citations/${citationId}`, { method: "DELETE" }),
   getCitationSuggestions: (projectId: number) =>
     request<{ suggestions: ApiSuggestion[] }>(`/projects/${projectId}/citations/suggestions`),
+  getCitationSuggestionsByText: (projectId: number, text: string) =>
+    request<{ suggestions: ApiSuggestion[] }>(`/projects/${projectId}/citations/suggestions`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+
+  // ── Manuscript Versions ───────────────────────────────────────────────────────
+  saveVersion: (projectId: number) =>
+    request<ApiManuscriptVersion>(`/projects/${projectId}/manuscript/version`, { method: "POST" }),
+  getVersionHistory: (projectId: number) =>
+    request<ApiManuscriptVersion[]>(`/projects/${projectId}/manuscript/history`),
 
   // ── Contributions ─────────────────────────────────────────────────────────────
   getContributions: (projectId: number) =>

@@ -400,6 +400,24 @@ def delete_citation(
     db.commit()
 
 
+def _run_suggestions(full_text: str, existing_titles: set[str]) -> list[dict]:
+    full_text_lower = full_text.lower()
+    matched = []
+    for suggestion in SUGGESTIONS:
+        if suggestion["title"].lower() in existing_titles:
+            continue
+        if any(kw in full_text_lower for kw in suggestion["keywords"]):
+            matched.append(suggestion)
+    if not matched:
+        matched = [s for s in SUGGESTIONS if s["title"].lower() not in existing_titles][:4]
+    return matched
+
+
+def _get_existing_titles(project_id: int, db: Session) -> set[str]:
+    rows = db.query(models.Citation.title).filter(models.Citation.project_id == project_id).all()
+    return {r[0].lower() for r in rows}
+
+
 @router.get("/projects/{project_id}/citations/suggestions")
 def get_suggestions(
     project_id: int,
@@ -413,33 +431,31 @@ def get_suggestions(
         models.Manuscript.project_id == project_id
     ).first()
 
-    if not manuscript:
-        return {"suggestions": SUGGESTIONS[:3]}
+    full_text = ""
+    if manuscript:
+        try:
+            content_dict = json.loads(manuscript.content)
+            full_text = " ".join(v for v in content_dict.values() if v)
+        except Exception:
+            pass
 
-    try:
-        content_dict = json.loads(manuscript.content)
-    except Exception:
-        content_dict = {}
+    existing_titles = _get_existing_titles(project_id, db)
+    return {"suggestions": _run_suggestions(full_text, existing_titles)}
 
-    full_text = " ".join(content_dict.values()).lower()
 
-    matched = []
-    existing_titles = {
-        s["title"].lower()
-        for s in (
-            db.query(models.Citation.title)
-            .filter(models.Citation.project_id == project_id)
-            .all()
-        )
-    }
+class SuggestionsByTextRequest(BaseModel):
+    text: str
 
-    for suggestion in SUGGESTIONS:
-        if suggestion["title"].lower() in existing_titles:
-            continue
-        if any(kw in full_text for kw in suggestion["keywords"]):
-            matched.append(suggestion)
 
-    if not matched:
-        matched = [s for s in SUGGESTIONS if s["title"].lower() not in existing_titles][:3]
+@router.post("/projects/{project_id}/citations/suggestions")
+def get_suggestions_by_text(
+    project_id: int,
+    body: SuggestionsByTextRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not _check_project_access(project_id, current_user, db):
+        raise HTTPException(status_code=403, detail="No access")
 
-    return {"suggestions": matched}
+    existing_titles = _get_existing_titles(project_id, db)
+    return {"suggestions": _run_suggestions(body.text, existing_titles)}

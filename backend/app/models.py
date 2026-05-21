@@ -165,3 +165,18 @@ class Contribution(Base):
 
     user = relationship("User")
     project = relationship("Project")
+
+
+# ── Sprint 3: Manuscript Versions ─────────────────────────────────────────────
+
+class ManuscriptVersion(Base):
+    __tablename__ = "manuscript_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manuscript_id = Column(Integer, ForeignKey("manuscripts.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    saved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    manuscript = relationship("Manuscript")
+    saver = relationship("User")

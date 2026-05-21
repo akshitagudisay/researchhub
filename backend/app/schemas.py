@@ -259,6 +259,18 @@ class ContributionRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ManuscriptVersionRead(BaseModel):
+    id: int
+    manuscript_id: int
+    content: str
+    saved_by: Optional[int] = None
+    saved_by_email: Optional[str] = None
+    preview: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ContributionSummary(BaseModel):
     contributors: list
     total_score: int

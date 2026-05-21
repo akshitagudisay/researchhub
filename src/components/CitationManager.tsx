@@ -1,11 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiCitation, type ApiSuggestion } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   X, Search, Upload, BookOpen, Trash2, Copy, ChevronDown,
-  ChevronUp, Sparkles, Plus, Loader2,
+  ChevronUp, Sparkles, Plus, Loader2, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,7 +14,10 @@ interface Props {
   canWrite: boolean;
   onInsert: (citation: string) => void;
   onClose: () => void;
+  currentManuscriptText?: string;
 }
+
+// ── Citation Card ─────────────────────────────────────────────────────────────
 
 function CitationCard({
   citation,
@@ -32,7 +35,9 @@ function CitationCard({
   const { toast } = useToast();
 
   const text = format === "apa" ? citation.formatted_apa : citation.formatted_ieee;
-  const authorStr = citation.authors.slice(0, 3).join(", ") + (citation.authors.length > 3 ? " et al." : "");
+  const authorStr =
+    citation.authors.slice(0, 3).join(", ") +
+    (citation.authors.length > 3 ? " et al." : "");
 
   const copy = () => {
     if (text) {
@@ -77,18 +82,19 @@ function CitationCard({
       {expanded && (
         <div className="space-y-1.5">
           <div className="flex gap-1">
-            <button
-              onClick={() => setFormat("apa")}
-              className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${format === "apa" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground border-transparent hover:border-border"}`}
-            >
-              APA
-            </button>
-            <button
-              onClick={() => setFormat("ieee")}
-              className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${format === "ieee" ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground border-transparent hover:border-border"}`}
-            >
-              IEEE
-            </button>
+            {(["apa", "ieee"] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setFormat(f)}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors uppercase ${
+                  format === f
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "text-muted-foreground border-transparent hover:border-border"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
           </div>
           <p className="text-[11px] text-muted-foreground bg-muted/50 rounded-lg p-2 leading-relaxed">{text}</p>
           <div className="flex gap-1">
@@ -107,61 +113,115 @@ function CitationCard({
   );
 }
 
-function SuggestionCard({ s, onAdd, canWrite }: { s: ApiSuggestion; onAdd: (doi: string) => void; canWrite: boolean }) {
+// ── Suggestion Card ───────────────────────────────────────────────────────────
+
+function SuggestionCard({
+  s,
+  onAdd,
+  canWrite,
+  isAdding,
+}: {
+  s: ApiSuggestion;
+  onAdd: (doi: string) => void;
+  canWrite: boolean;
+  isAdding: boolean;
+}) {
   return (
     <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 space-y-1.5">
       <p className="text-[11px] font-semibold text-foreground leading-snug">{s.title}</p>
-      <p className="text-[10px] text-muted-foreground">{s.authors.slice(0, 2).join(", ")} · {s.journal} {s.year}</p>
+      <p className="text-[10px] text-muted-foreground">
+        {s.authors.slice(0, 2).join(", ")} · {s.journal} {s.year}
+      </p>
       {canWrite && (
         <Button
           variant="outline"
           size="sm"
           className="h-6 text-[10px] px-2 border-primary/30 text-primary hover:bg-primary/10"
           onClick={() => onAdd(s.doi)}
+          disabled={isAdding}
         >
-          <Plus className="w-3 h-3 mr-1" /> Add
+          {isAdding ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <><Plus className="w-3 h-3 mr-1" /> Add</>
+          )}
         </Button>
       )}
     </div>
   );
 }
 
-export default function CitationManager({ projectId, canWrite, onInsert, onClose }: Props) {
+// ── Main CitationManager ──────────────────────────────────────────────────────
+
+export default function CitationManager({
+  projectId,
+  canWrite,
+  onInsert,
+  onClose,
+  currentManuscriptText = "",
+}: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [doiInput, setDoiInput] = useState("");
   const [bibtexInput, setBibtexInput] = useState("");
   const [showBibtex, setShowBibtex] = useState(false);
   const [tab, setTab] = useState<"library" | "suggestions">("library");
+  const [addingDoi, setAddingDoi] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // ── Citations library ────────────────────────────────────────────────────
   const { data: citations, isLoading } = useQuery({
     queryKey: ["/projects", projectId, "citations"],
     queryFn: () => api.getCitations(projectId),
     enabled: !!projectId,
   });
 
-  const { data: suggestionsData } = useQuery({
+  // ── Suggestions: POST with current manuscript text when available ─────────
+  const manuscriptHasContent = currentManuscriptText.trim().length > 20;
+
+  const {
+    data: suggestionsData,
+    isLoading: suggestionsLoading,
+    refetch: refetchSuggestions,
+    isFetching: suggestionsFetching,
+  } = useQuery({
     queryKey: ["/projects", projectId, "citations", "suggestions"],
-    queryFn: () => api.getCitationSuggestions(projectId),
-    enabled: !!projectId,
+    queryFn: () =>
+      manuscriptHasContent
+        ? api.getCitationSuggestionsByText(projectId, currentManuscriptText)
+        : api.getCitationSuggestions(projectId),
+    enabled: tab === "suggestions",
+    staleTime: 0,
   });
 
+  // Refetch suggestions whenever switching to the tab or manuscript changes significantly
+  useEffect(() => {
+    if (tab === "suggestions") {
+      refetchSuggestions();
+    }
+  }, [tab]);
+
+  // ── Mutations ────────────────────────────────────────────────────────────
   const doiMutation = useMutation({
     mutationFn: (doi: string) => api.addCitationByDoi(projectId, doi),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "citations"] });
       queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "citations", "suggestions"] });
       setDoiInput("");
+      setAddingDoi(null);
       toast({ title: "Citation added", description: "DOI lookup successful." });
     },
-    onError: (e: Error) => toast({ title: "DOI lookup failed", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      setAddingDoi(null);
+      toast({ title: "DOI lookup failed", description: e.message, variant: "destructive" });
+    },
   });
 
   const bibtexMutation = useMutation({
     mutationFn: (bibtex: string) => api.importBibtex(projectId, bibtex),
     onSuccess: (imported) => {
       queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "citations"] });
+      queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "citations", "suggestions"] });
       setBibtexInput("");
       setShowBibtex(false);
       toast({ title: `Imported ${imported.length} citation${imported.length !== 1 ? "s" : ""}` });
@@ -181,10 +241,7 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      bibtexMutation.mutate(text);
-    };
+    reader.onload = ev => bibtexMutation.mutate(ev.target?.result as string);
     reader.readAsText(file);
     e.target.value = "";
   };
@@ -196,10 +253,16 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
     doiMutation.mutate(doi);
   };
 
+  const handleSuggestionAdd = (doi: string) => {
+    setAddingDoi(doi);
+    doiMutation.mutate(doi);
+  };
+
   const suggestions = suggestionsData?.suggestions ?? [];
 
   return (
     <div className="w-80 flex-shrink-0 border-l bg-card flex flex-col h-full overflow-hidden">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
         <div className="flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-primary" />
@@ -210,7 +273,7 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
         </Button>
       </div>
 
-      {/* DOI input */}
+      {/* DOI + BibTeX inputs */}
       {canWrite && (
         <div className="px-3 py-3 border-b flex-shrink-0 space-y-2">
           <form onSubmit={handleDoiSubmit} className="flex gap-1.5">
@@ -223,8 +286,15 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
                 className="w-full pl-7 pr-3 py-1.5 text-xs rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
-            <Button type="submit" size="sm" className="h-8 px-3" disabled={doiMutation.isPending || !doiInput.trim()}>
-              {doiMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Add"}
+            <Button
+              type="submit"
+              size="sm"
+              className="h-8 px-3"
+              disabled={doiMutation.isPending || !doiInput.trim()}
+            >
+              {doiMutation.isPending && !addingDoi
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : "Add"}
             </Button>
           </form>
 
@@ -257,7 +327,7 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
               <textarea
                 value={bibtexInput}
                 onChange={e => setBibtexInput(e.target.value)}
-                placeholder={`@article{key,\n  title={...},\n  author={...},\n  year={2024}\n}`}
+                placeholder={"@article{key,\n  title={...},\n  author={...},\n  year={2024}\n}"}
                 className="w-full h-24 text-[11px] font-mono rounded-lg border bg-muted/30 p-2 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
               />
               <Button
@@ -266,7 +336,7 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
                 onClick={() => bibtexMutation.mutate(bibtexInput)}
                 disabled={bibtexMutation.isPending || !bibtexInput.trim()}
               >
-                {bibtexMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                {bibtexMutation.isPending && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
                 Import BibTeX
               </Button>
             </div>
@@ -306,7 +376,9 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
                 <BookOpen className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                 <p className="text-xs text-muted-foreground">No citations yet.</p>
                 {canWrite && (
-                  <p className="text-[11px] text-muted-foreground mt-1">Paste a DOI above to add one.</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Paste a DOI above to add one.
+                  </p>
                 )}
               </div>
             ) : (
@@ -325,23 +397,41 @@ export default function CitationManager({ projectId, canWrite, onInsert, onClose
 
         {tab === "suggestions" && (
           <>
-            {suggestions.length === 0 ? (
+            <div className="flex items-center justify-between px-1 mb-1">
+              <p className="text-[10px] text-muted-foreground">
+                {manuscriptHasContent
+                  ? "Based on your current manuscript:"
+                  : "Popular papers — write more to get personalized suggestions"}
+              </p>
+              <button
+                onClick={() => refetchSuggestions()}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                title="Refresh suggestions"
+              >
+                <RefreshCw className={`w-3 h-3 ${suggestionsFetching ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+
+            {suggestionsLoading ? (
+              <div className="space-y-2">
+                {[0, 1, 2].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+              </div>
+            ) : suggestions.length === 0 ? (
               <div className="text-center py-8">
                 <Sparkles className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">Write more manuscript content to get suggestions.</p>
+                <p className="text-xs text-muted-foreground">No suggestions available.</p>
+                <p className="text-[11px] text-muted-foreground mt-1">All papers already added.</p>
               </div>
             ) : (
-              <>
-                <p className="text-[10px] text-muted-foreground px-1">Based on your manuscript content:</p>
-                {suggestions.map((s, i) => (
-                  <SuggestionCard
-                    key={i}
-                    s={s}
-                    canWrite={canWrite}
-                    onAdd={(doi) => doiMutation.mutate(doi)}
-                  />
-                ))}
-              </>
+              suggestions.map((s, i) => (
+                <SuggestionCard
+                  key={i}
+                  s={s}
+                  canWrite={canWrite}
+                  onAdd={handleSuggestionAdd}
+                  isAdding={addingDoi === s.doi && doiMutation.isPending}
+                />
+              ))
             )}
           </>
         )}

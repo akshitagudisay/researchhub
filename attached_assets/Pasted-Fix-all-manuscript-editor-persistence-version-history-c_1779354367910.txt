@@ -1,0 +1,368 @@
+Fix all manuscript editor persistence, version history, citation suggestions, and loading issues in the ResearchHub platform.
+
+Current problems observed:
+
+1. Manuscript editor takes too long to load
+2. Written text disappears after refresh/navigation
+3. Save Version button does not work
+4. Version History remains empty
+5. Autosave is unreliable
+6. Citation Suggestions panel near BibTeX is not working
+7. Some sections show infinite/skeleton loading states
+8. Possible frontend/backend synchronization bugs
+
+IMPORTANT:
+Do NOT redesign UI.
+Focus on fixing:
+
+* persistence
+* API integration
+* autosave
+* version saving
+* loading states
+* frontend/backend synchronization
+* citation suggestion logic
+
+Keep current Tailwind/shadcn design.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — FIX MANUSCRIPT PERSISTENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+
+* user types manuscript content
+* content disappears after refresh/reopen
+* manuscript is not being stored correctly
+
+Fix complete persistence flow.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Verify manuscript table/model exists with:
+
+* id
+* project_id
+* content
+* updated_at
+* created_at
+
+Ensure:
+
+* manuscript updates are committed to database
+* autosave endpoint updates existing manuscript correctly
+* manuscript retrieval endpoint returns latest saved content
+
+Fix:
+
+* missing db.commit()
+* incorrect PATCH/PUT logic
+* manuscript overwrite bugs
+* null manuscript initialization issues
+
+━━━━━━━━━━━━━━━━━━━━━━━
+API ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure these routes fully work:
+
+GET /projects/{project_id}/manuscript
+
+* returns latest manuscript
+
+PATCH /projects/{project_id}/manuscript
+
+* updates manuscript content
+* persists to database
+
+POST /projects/{project_id}/manuscript/version
+
+* saves version snapshot
+
+GET /projects/{project_id}/manuscript/history
+
+* returns saved versions
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix manuscript editor state management.
+
+Current issue likely:
+
+* local React state resets
+* async fetch overwrites editor state
+* autosave race conditions
+
+Fix:
+
+* proper loading sequence
+* initialize editor only after fetch completes
+* prevent empty overwrite
+* debounce autosave
+
+Ensure:
+
+* typed content remains after refresh
+* saved content loads correctly
+* autosave updates properly
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AUTOSAVE FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement stable autosave:
+
+* autosave every few seconds
+* debounce requests
+* prevent duplicate requests
+* show save status
+
+Statuses:
+
+* Saving...
+* Saved
+* Error Saving
+
+Do NOT autosave empty content over existing content.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — FIX SAVE VERSION + HISTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+
+* clicking "Save Version" does nothing
+* Version History remains empty
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND VERSION FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create/fix ManuscriptVersion model:
+
+Fields:
+
+* id
+* manuscript_id
+* content
+* created_at
+* saved_by
+
+When user clicks:
+"Save Version"
+
+Backend should:
+
+* create snapshot entry
+* store current manuscript content
+* save timestamp
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VERSION HISTORY API
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure:
+GET /projects/{project_id}/manuscript/history
+
+Returns:
+
+* version id
+* timestamp
+* saved_by
+* preview snippet
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND HISTORY FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix History panel.
+
+Current issue:
+"No saved versions yet"
+
+Even after clicking save.
+
+Implement:
+
+* fetch history on panel open
+* refresh history after saving version
+* display versions dynamically
+
+Each history card should show:
+
+* save timestamp
+* collaborator name
+* manuscript preview snippet
+
+Add:
+
+* load version button
+* restore version confirmation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — FIX CITATION SUGGESTIONS PANEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+Suggestions panel near BibTeX says:
+"Write more manuscript content to get suggestions"
+
+But suggestions are not generating correctly.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix suggestion generation logic.
+
+Suggestions should:
+
+* analyze manuscript content
+* detect keywords
+* generate lightweight research/citation suggestions
+
+Examples:
+
+If manuscript contains:
+
+* transformer
+  → suggest:
+  "Attention Is All You Need"
+
+* protein folding
+  → suggest:
+  "AlphaFold"
+
+* graph neural network
+  → suggest:
+  "Graph Attention Networks"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SUGGESTION API
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure endpoint exists:
+
+POST /citations/suggestions
+
+Input:
+{
+"text": "manuscript content"
+}
+
+Return:
+[
+{
+"title": "...",
+"authors": "...",
+"reason": "..."
+}
+]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix suggestions tab behavior.
+
+Ensure:
+
+* manuscript content is actually sent to backend
+* suggestions render correctly
+* loading states work
+* empty state only shown if truly empty
+
+Add:
+
+* clickable suggestion cards
+* insert citation button
+* loading spinner
+* error fallback
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — FIX LOADING/SKELETON ISSUES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+Some panels stay in skeleton/loading state too long.
+
+Fix:
+
+* unresolved async states
+* missing await logic
+* API timeout handling
+* loading state cleanup
+
+Ensure:
+
+* loading skeleton disappears correctly
+* fallback error UI appears if request fails
+* no infinite loading loops
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 5 — DEBUG ADDITIONAL BUGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Audit manuscript workflow completely for:
+
+* websocket sync issues
+* stale state updates
+* duplicate autosave requests
+* empty content overwrite
+* history refresh bugs
+* invalid API responses
+* race conditions
+* editor hydration issues
+* React state reset bugs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED FINAL BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.
+
+User writes manuscript
+→ autosave triggers
+→ content persists after refresh
+
+2.
+
+User clicks Save Version
+→ version saved in database
+→ history updates immediately
+
+3.
+
+User opens History
+→ previous versions visible
+→ can restore versions
+
+4.
+
+Suggestions panel
+→ analyzes manuscript
+→ shows related papers/citations
+
+5.
+
+Loading states
+→ smooth
+→ no infinite skeletons
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT break:
+
+* auth
+* collaboration
+* realtime editing
+* citation manager
+* existing manuscript structure
+
+Keep architecture modular and production-like.
