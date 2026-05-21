@@ -1,0 +1,301 @@
+Fix the AI Writing Assistant because it is currently returning almost the exact same text as the original manuscript instead of actually improving writing quality.
+
+Current issue:
+
+* AI assistant simply copies original content
+* no grammar improvement
+* no academic tone enhancement
+* no clarity enhancement
+* no meaningful rewriting
+* rewritten text is nearly identical to input
+
+The AI assistant should feel genuinely intelligent and visibly improve manuscript quality during demo.
+
+IMPORTANT:
+Do NOT redesign the UI.
+Fix the actual backend AI transformation logic and frontend rendering.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROOT PROBLEM TO FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current backend likely:
+
+* returns input text directly
+  OR
+* performs extremely weak replacements
+
+Need REAL visible transformation.
+
+When user clicks:
+
+* Improve Writing
+* Improve Clarity
+* Academic Tone
+* Rewrite
+
+The output should visibly differ from original text.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND AI LOGIC FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix all AI endpoints:
+
+POST /ai/improve-writing
+POST /ai/rewrite
+POST /ai/clarity
+POST /ai/grammar
+
+━━━━━━━━━━━━━━━━━━━━━━━
+NEW IMPROVEMENT STRATEGY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement strong lightweight transformation logic.
+
+Do NOT simply return original text.
+
+Apply:
+
+* academic phrase replacement
+* sentence restructuring
+* grammar cleanup
+* scientific wording enhancement
+* passive voice conversion where appropriate
+* concise rewriting
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE TRANSFORMATIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Input:
+"We tested the model on many datasets and got good results."
+
+Output:
+"We conducted extensive evaluation of the model across multiple datasets and obtained promising experimental results."
+
+───────────────────────
+
+Input:
+"There are a lot of problems in the system."
+
+Output:
+"The system exhibits several critical limitations affecting overall performance."
+
+───────────────────────
+
+Input:
+"The method works very well."
+
+Output:
+"The proposed methodology demonstrates strong empirical performance."
+
+───────────────────────
+
+Input:
+"We looked at the data carefully."
+
+Output:
+"A detailed analysis of the dataset was conducted."
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENT ACADEMIC REPLACEMENT ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create reusable academic phrase mappings.
+
+Examples:
+
+"good results"
+→ "promising experimental outcomes"
+
+"a lot of"
+→ "numerous"
+
+"looked at"
+→ "analyzed"
+
+"shows"
+→ "demonstrates"
+
+"used"
+→ "utilized"
+
+"made"
+→ "constructed"
+
+"tested"
+→ "evaluated"
+
+"big"
+→ "significant"
+
+"bad"
+→ "suboptimal"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ADD SENTENCE RESTRUCTURING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Improve sentence flow:
+
+* combine short sentences
+* formalize transitions
+* improve readability
+
+Add:
+
+* better connectors
+* scientific transitions
+* concise academic structure
+
+━━━━━━━━━━━━━━━━━━━━━━━
+GRAMMAR IMPROVEMENT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix:
+
+* repeated words
+* weak phrasing
+* informal language
+* punctuation issues
+* capitalization issues
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CLARITY IMPROVEMENT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+For clarity mode:
+
+* simplify confusing wording
+* reduce redundancy
+* improve readability
+* keep technical meaning intact
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REWRITE MODE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Rewrite mode should:
+
+* significantly restructure sentences
+* preserve meaning
+* produce visibly different output
+
+Do NOT:
+
+* simply replace 1–2 words
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AI RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Return:
+{
+"title": "Academic Tone Enhancement",
+"original": "...",
+"suggestion": "...",
+"improvements": [
+"Improved academic tone",
+"Enhanced clarity",
+"Reduced informal wording"
+],
+"confidence": 0.92
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTIONAL LIGHTWEIGHT AI API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If easy:
+Integrate lightweight free API:
+
+* HuggingFace inference
+  OR
+* OpenRouter free model
+
+BUT:
+Application must still work fully offline using local rewriting logic.
+
+Fallback engine REQUIRED.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure frontend displays:
+
+* original text
+* improved text
+* highlighted differences
+
+Add:
+
+* before/after comparison cards
+* improvement badges
+* visible rewrite differences
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DIFFERENCE HIGHLIGHTING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Highlight:
+
+* replaced academic phrases
+* rewritten sentences
+* improved wording
+
+Use:
+
+* subtle colored highlights
+* modern comparison UI
+
+━━━━━━━━━━━━━━━━━━━━━━━
+APPLY BUTTON FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+When user clicks Apply:
+
+* replace selected manuscript text
+* preserve formatting
+* autosave updated manuscript
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANTI-COPY PROTECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT:
+Prevent AI endpoints from returning unchanged text.
+
+If transformed output similarity > 85%
+→ force additional rewriting pass.
+
+Never allow:
+output == input
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED FINAL BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+User selects:
+"We tested the model and got good results."
+
+AI output should visibly improve:
+"We conducted extensive evaluation of the proposed model and achieved promising experimental outcomes."
+
+NOT:
+"We tested the model and got good results."
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FINAL GOAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+The AI assistant should FEEL genuinely intelligent during demo:
+
+* visible rewriting
+* academic tone
+* grammar improvements
+* better clarity
+* polished manuscript output
+
+without requiring heavy AI infrastructure.

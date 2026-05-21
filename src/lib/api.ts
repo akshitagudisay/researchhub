@@ -197,6 +197,7 @@ export interface ApiAIWritingResponse {
   title: string;
   original: string;
   suggestion: string;
+  improvements: string[];
   confidence: number;
   changes_made: number;
 }
