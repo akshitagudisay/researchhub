@@ -167,6 +167,54 @@ class Contribution(Base):
     project = relationship("Project")
 
 
+# ── Sprint 3: Peer Review Workflow ────────────────────────────────────────────
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id = Column(Integer, primary_key=True, index=True)
+    manuscript_id = Column(Integer, ForeignKey("manuscripts.id"), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String, default="pending", nullable=False)
+    comments = Column(Text, nullable=True)
+    decision = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=True)
+
+    manuscript = relationship("Manuscript")
+    reviewer = relationship("User", foreign_keys=[reviewer_id])
+    assigner = relationship("User", foreign_keys=[assigned_by])
+
+
+# ── Sprint 3: Reproducibility Tracking ────────────────────────────────────────
+
+class DatasetExperimentLink(Base):
+    __tablename__ = "dataset_experiment_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=False)
+    experiment_id = Column(Integer, ForeignKey("experiments.id"), nullable=False)
+    relationship_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    dataset = relationship("Dataset")
+    experiment = relationship("Experiment")
+
+
+class ExperimentManuscriptLink(Base):
+    __tablename__ = "experiment_manuscript_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    experiment_id = Column(Integer, ForeignKey("experiments.id"), nullable=False)
+    manuscript_section = Column(String, nullable=False)
+    figure_reference = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    experiment = relationship("Experiment")
+
+
 # ── Sprint 3: Manuscript Versions ─────────────────────────────────────────────
 
 class ManuscriptVersion(Base):

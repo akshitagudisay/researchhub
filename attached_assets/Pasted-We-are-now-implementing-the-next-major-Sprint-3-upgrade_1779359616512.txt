@@ -1,0 +1,594 @@
+We are now implementing the next major Sprint-3 upgrade for the ResearchHub platform.
+
+Current platform already includes:
+
+* JWT authentication
+* role-based collaboration
+* project workspaces
+* manuscripts
+* datasets
+* experiments
+* collaboration invites
+* real-time chat
+* realtime manuscript editing
+* citation manager
+* contributor analytics
+* AI research copilot
+
+Do NOT refactor existing architecture.
+
+This task is to implement THREE fully connected advanced systems together:
+
+1. Peer Review Workflow System
+2. Reproducibility Tracking System
+3. AI Writing Assistant
+
+IMPORTANT:
+Implementation must be:
+
+* end-to-end
+* fully connected frontend ↔ backend
+* stable and production-like
+* resilient to API failures
+* resilient to websocket disconnects
+* modular
+* visually impressive
+* lightweight enough for Replit
+
+Do NOT build overly complex infrastructure.
+Do NOT use heavy ML training.
+
+All APIs must:
+
+* validate requests
+* handle failures gracefully
+* never silently fail
+* always return proper JSON responses
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — PEER REVIEW WORKFLOW SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement a complete academic peer review workflow integrated with manuscripts and collaboration permissions.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE MODELS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create Review model:
+
+Fields:
+
+* id
+* manuscript_id
+* reviewer_id
+* assigned_by
+* status
+* comments
+* decision
+* created_at
+* updated_at
+
+Statuses:
+
+* pending
+* in_review
+* approved
+* rejected
+* revision_requested
+
+Decisions:
+
+* approve
+* reject
+* minor_revision
+* major_revision
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REVIEW ASSIGNMENT FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Workflow:
+
+Project Owner
+→ assigns collaborator as reviewer
+→ reviewer receives review assignment
+→ reviewer opens manuscript review panel
+→ reviewer adds comments
+→ reviewer approves/rejects manuscript
+→ review history updates
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND API ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create robust routes:
+
+POST /reviews/assign
+
+* assign reviewer to manuscript
+
+GET /reviews/project/{project_id}
+
+* fetch all reviews for project
+
+GET /reviews/manuscript/{manuscript_id}
+
+* fetch manuscript reviews
+
+POST /reviews/{review_id}/comment
+
+* add reviewer comments
+
+PATCH /reviews/{review_id}/decision
+
+* approve/reject/revision request
+
+GET /reviews/history/{manuscript_id}
+
+* fetch review history timeline
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PERMISSION RULES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Owner:
+
+* assign reviewers
+* view all reviews
+* finalize manuscript
+
+Reviewer:
+
+* comment
+* approve/reject
+* access assigned reviews only
+
+Viewer:
+
+* read-only access
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FAILURE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+ALL APIs must:
+
+* validate manuscript existence
+* validate reviewer permissions
+* prevent duplicate reviewer assignments
+* handle invalid review IDs
+* return proper errors
+
+Example:
+{
+"detail": "Reviewer already assigned"
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create Reviewer Dashboard page.
+
+Features:
+
+* assigned reviews list
+* manuscript review interface
+* review status badges
+* review timeline
+* approval/rejection controls
+
+━━━━━━━━━━━━━━━━━━━━━━━
+MANUSCRIPT REVIEW UI
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside manuscript page:
+
+Add:
+
+* "Assign Reviewer" button
+* reviewer dropdown
+* review sidebar
+
+Reviewer interface should include:
+
+* manuscript preview
+* inline comments
+* review notes
+* decision buttons
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DECISION CONTROLS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Buttons:
+
+* Approve
+* Reject
+* Request Minor Revision
+* Request Major Revision
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REVIEW HISTORY TIMELINE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Display:
+
+* reviewer name
+* decision
+* timestamp
+* comments summary
+
+Use:
+
+* timeline cards
+* activity feed design
+* smooth transitions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — REPRODUCIBILITY TRACKING SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement lightweight research reproducibility tracking.
+
+Goal:
+Create traceable relationships between:
+
+* datasets
+* experiments
+* manuscript sections
+* generated results/figures
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE MODELS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create linkage models:
+
+DatasetExperimentLink
+Fields:
+
+* id
+* dataset_id
+* experiment_id
+* relationship_note
+
+ExperimentManuscriptLink
+Fields:
+
+* id
+* experiment_id
+* manuscript_section
+* figure_reference
+* description
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REPRODUCIBILITY FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Example chain:
+
+Dataset A
+→ used in Experiment 3
+→ Experiment 3 generated Figure 2
+→ Figure 2 referenced in Results section
+
+System should visualize this dependency chain.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /reproducibility/link-dataset
+POST /reproducibility/link-experiment
+GET /reproducibility/project/{project_id}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure:
+
+* datasets exist
+* experiments exist
+* manuscript section valid
+
+Prevent:
+
+* duplicate links
+* orphan relationships
+* invalid references
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create Reproducibility Graph page.
+
+Visualize:
+
+* datasets
+* experiments
+* manuscript sections
+* generated figures
+
+Use:
+
+* React Flow
+  OR
+* Cytoscape.js
+
+━━━━━━━━━━━━━━━━━━━━━━━
+GRAPH FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Nodes:
+
+* Dataset
+* Experiment
+* Figure
+* Manuscript Section
+
+Edges:
+
+* "used in"
+* "generated"
+* "referenced in"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+INTERACTIVE FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+* clickable nodes
+* zoom/pan
+* dependency highlighting
+* hover tooltips
+* graph legend
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VISUAL FLOW EXAMPLE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Dataset A
+↓
+Experiment 3
+↓
+Figure 2
+↓
+Results Section
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REALTIME UPDATES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+When:
+
+* new experiment added
+* dataset linked
+* figure referenced
+
+Graph should refresh automatically.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — AI WRITING ASSISTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement intelligent manuscript writing assistance integrated directly into manuscript editor.
+
+IMPORTANT:
+Use lightweight AI logic.
+
+Do NOT build heavy LLM infrastructure.
+
+OPTIONAL:
+Use lightweight free APIs:
+
+* OpenRouter
+* HuggingFace inference
+
+BUT:
+System must still work without external APIs.
+
+Fallback responses REQUIRED.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AI FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement:
+
+* grammar correction
+* academic tone improvement
+* clarity suggestions
+* rewrite recommendations
+* concise rewriting
+* formal scientific wording
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND AI ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /ai/improve-writing
+POST /ai/rewrite
+POST /ai/clarity
+POST /ai/grammar
+
+Input:
+{
+"text": "...",
+"project_id": 1
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AI RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Return:
+{
+"title": "Academic Tone Improvement",
+"original": "...",
+"suggestion": "...",
+"confidence": 0.91
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+LIGHTWEIGHT AI LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement:
+
+* keyword-based academic enhancement
+* scientific phrase replacement
+* grammar cleanup
+* formal wording templates
+
+Examples:
+
+"we tested"
+→
+"We conducted experimental evaluation"
+
+"a lot of"
+→
+"a significant number of"
+
+"good results"
+→
+"promising experimental outcomes"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND AI SIDEBAR
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside manuscript workspace:
+
+Add collapsible:
+"AI Writing Assistant"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SIDEBAR FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Buttons:
+
+* Improve Writing
+* Rewrite Section
+* Improve Clarity
+* Fix Grammar
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AI RESPONSE CARDS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Each card should display:
+
+* original text
+* improved text
+* confidence badge
+* Apply button
+* Copy button
+* Dismiss button
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EDITOR INTEGRATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+User selects manuscript text
+→ clicks AI action
+→ frontend sends selected text to backend
+→ backend generates improved version
+→ sidebar displays suggestion
+→ user clicks Apply
+→ manuscript updates live
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FAILURE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+If external AI API fails:
+
+* fallback to local lightweight suggestion engine
+
+Never:
+
+* crash UI
+* freeze loading state
+* lose manuscript text
+
+━━━━━━━━━━━━━━━━━━━━━━━
+LOADING STATES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show:
+
+* "Analyzing manuscript..."
+* animated thinking indicator
+* retry button on failure
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GENERAL STABILITY REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VERY IMPORTANT:
+
+Fix and prevent:
+
+* request failures
+* websocket disconnect crashes
+* stale React state
+* infinite loading loops
+* API timeout hangs
+* empty manuscript overwrite
+* race conditions
+* invalid JSON responses
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND API REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+ALL frontend requests must:
+
+* include JWT token
+* use centralized API helper
+* retry failed requests
+* handle 401 properly
+* show meaningful errors
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+ALL backend routes must:
+
+* validate request payloads
+* return consistent JSON
+* use try/catch
+* rollback db on failure
+* log errors clearly
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED FINAL DEMO FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Owner assigns reviewer
+→ reviewer comments and approves manuscript
+→ review history updates
+
+Dataset linked to experiment
+→ experiment linked to Results section
+→ reproducibility graph visualizes workflow
+
+User selects manuscript text
+→ AI improves academic writing
+→ user applies rewrite instantly
+
+All systems must work together end-to-end without breaking:
+
+* auth
+* collaboration
+* realtime editing
+* citations
+* autosave
+* manuscript persistence
+* contribution analytics

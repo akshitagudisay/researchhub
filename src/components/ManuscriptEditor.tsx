@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Save, History, ChevronRight, Eye, Wifi, WifiOff,
+  Save, History, Eye, Wifi, WifiOff,
   CheckCircle2, Clock, AlertTriangle, BookOpen, Users,
-  RotateCcw, Loader2, X, AlertCircle,
+  RotateCcw, Loader2, X, AlertCircle, UserCheck, Wand2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CitationManager from "./CitationManager";
+import ReviewPanel from "./ReviewPanel";
+import AIWritingAssistant from "./AIWritingAssistant";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +59,8 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 interface Props {
   projectId: number;
   canWrite?: boolean;
+  userRole?: string;
+  currentUserId?: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -235,7 +239,7 @@ function AutoReferences({ projectId }: { projectId: number }) {
 
 // ── Main Editor ───────────────────────────────────────────────────────────────
 
-export default function ManuscriptEditor({ projectId, canWrite = true }: Props) {
+export default function ManuscriptEditor({ projectId, canWrite = true, userRole = "owner", currentUserId = 0 }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { token } = useAuth();
@@ -245,9 +249,14 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
   const contentRef = useRef<ManuscriptContent>(EMPTY_CONTENT); // mirrors state; used in callbacks
   const [activeSection, setActiveSection] = useState<keyof ManuscriptContent>("abstract");
 
-  // UI state
+  // UI state — only one panel open at a time
   const [showHistory, setShowHistory] = useState(false);
   const [showCitations, setShowCitations] = useState(false);
+  const [showReview, setShowReview] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+
+  // AI: track selected text for AI writing assistant
+  const [selectedText, setSelectedText] = useState("");
 
   // Autosave
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -366,6 +375,41 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
     setActiveSection(key);
     collab.sendSectionFocus(key);
   }, [activeSection, collab]);
+
+  // ── Panel toggle helpers — only one panel open at a time ──────────────────
+  const openPanel = useCallback((panel: "history" | "citations" | "review" | "ai") => {
+    setShowHistory(panel === "history");
+    setShowCitations(panel === "citations");
+    setShowReview(panel === "review");
+    setShowAI(panel === "ai");
+  }, []);
+
+  const closeAllPanels = useCallback(() => {
+    setShowHistory(false);
+    setShowCitations(false);
+    setShowReview(false);
+    setShowAI(false);
+  }, []);
+
+  // ── Apply AI suggestion to active section ─────────────────────────────────
+  const handleApplyAISuggestion = useCallback((newText: string) => {
+    if (!canWrite) return;
+    const current = contentRef.current;
+    const section = activeSection;
+    // Replace selected text within the section if a selection exists
+    const sectionText = current[section];
+    let updated: ManuscriptContent;
+    if (selectedText && sectionText.includes(selectedText)) {
+      updated = { ...current, [section]: sectionText.replace(selectedText, newText) };
+    } else {
+      updated = { ...current, [section]: newText };
+    }
+    setContent(updated);
+    contentRef.current = updated;
+    setSelectedText(newText);
+    collab.sendEdit(section, updated[section]);
+    scheduleRestAutosave(updated);
+  }, [canWrite, activeSection, selectedText, collab, scheduleRestAutosave]);
 
   // ── Insert citation into active section ───────────────────────────────────
   const handleInsertCitation = useCallback((citation: string) => {
@@ -575,16 +619,34 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setShowCitations(!showCitations); setShowHistory(false); }}
+            onClick={() => showCitations ? closeAllPanels() : openPanel("citations")}
             className={showCitations ? "bg-primary/10 text-primary" : ""}
           >
             <BookOpen className="w-3.5 h-3.5 mr-1.5" /> Citations
           </Button>
 
           <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => showReview ? closeAllPanels() : openPanel("review")}
+            className={showReview ? "bg-primary/10 text-primary" : ""}
+          >
+            <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Review
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => showAI ? closeAllPanels() : openPanel("ai")}
+            className={`gap-1.5 ${showAI ? "bg-primary/10 text-primary" : ""}`}
+          >
+            <Wand2 className="w-3.5 h-3.5" /> AI
+          </Button>
+
+          <Button
             variant="outline"
             size="sm"
-            onClick={() => { setShowHistory(!showHistory); setShowCitations(false); }}
+            onClick={() => showHistory ? closeAllPanels() : openPanel("history")}
             className={showHistory ? "bg-primary/10 text-primary border-primary/30" : ""}
           >
             <History className="w-3.5 h-3.5 mr-1.5" /> History
@@ -630,6 +692,20 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
             <Textarea
               value={content[activeSection]}
               onChange={e => handleContentChange(activeSection, e.target.value)}
+              onMouseUp={e => {
+                const sel = (e.target as HTMLTextAreaElement).value.substring(
+                  (e.target as HTMLTextAreaElement).selectionStart,
+                  (e.target as HTMLTextAreaElement).selectionEnd,
+                );
+                if (sel.trim()) setSelectedText(sel);
+              }}
+              onKeyUp={e => {
+                const sel = (e.target as HTMLTextAreaElement).value.substring(
+                  (e.target as HTMLTextAreaElement).selectionStart,
+                  (e.target as HTMLTextAreaElement).selectionEnd,
+                );
+                if (sel.trim()) setSelectedText(sel);
+              }}
               readOnly={!canWrite}
               className={`min-h-[400px] resize-none text-sm leading-relaxed border-none shadow-none focus-visible:ring-0 p-0 bg-transparent ${
                 !canWrite ? "cursor-default select-text text-muted-foreground" : ""
@@ -648,7 +724,7 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
               projectId={projectId}
               canWrite={canWrite}
               onRestore={handleRestoreVersion}
-              onClose={() => setShowHistory(false)}
+              onClose={closeAllPanels}
             />
           )}
         </div>
@@ -665,8 +741,30 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
           projectId={projectId}
           canWrite={canWrite}
           onInsert={handleInsertCitation}
-          onClose={() => setShowCitations(false)}
+          onClose={closeAllPanels}
           currentManuscriptText={currentManuscriptText}
+        />
+      )}
+
+      {/* Peer Review panel */}
+      {showReview && (
+        <ReviewPanel
+          projectId={projectId}
+          manuscriptId={manuscript?.id ?? null}
+          userRole={userRole}
+          currentUserId={currentUserId}
+          onClose={closeAllPanels}
+        />
+      )}
+
+      {/* AI Writing Assistant panel */}
+      {showAI && (
+        <AIWritingAssistant
+          projectId={projectId}
+          selectedText={selectedText}
+          activeSection={activeSection}
+          onApply={handleApplyAISuggestion}
+          onClose={closeAllPanels}
         />
       )}
     </div>

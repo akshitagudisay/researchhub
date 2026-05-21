@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { api, type ApiProject } from "@/lib/api";
+import { api, type ApiProject, type ApiUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import ManuscriptEditor from "@/components/ManuscriptEditor";
 import DatasetManager from "@/components/DatasetManager";
@@ -9,21 +9,23 @@ import ExperimentLogs from "@/components/ExperimentLogs";
 import CollaboratorsPanel from "@/components/CollaboratorsPanel";
 import ChatSidebar from "@/components/ChatSidebar";
 import ContributionsDashboard from "@/components/ContributionsDashboard";
+import ReproducibilityGraph from "@/components/ReproducibilityGraph";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   FileText, Database, FlaskConical, Users, ArrowLeft,
-  Eye, MessageSquare, BarChart3,
+  Eye, MessageSquare, BarChart3, GitBranch,
 } from "lucide-react";
 
-type Tab = "manuscript" | "datasets" | "experiments" | "collaborators" | "analytics";
+type Tab = "manuscript" | "datasets" | "experiments" | "collaborators" | "analytics" | "reproducibility";
 
-const tabs: { key: Tab; label: string; icon: typeof FileText }[] = [
+const tabs: { key: Tab; label: string; icon: typeof FileText; badge?: string }[] = [
   { key: "manuscript", label: "Manuscript", icon: FileText },
   { key: "datasets", label: "Datasets", icon: Database },
   { key: "experiments", label: "Experiments", icon: FlaskConical },
   { key: "collaborators", label: "Collaborators", icon: Users },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
+  { key: "reproducibility", label: "Reproducibility", icon: GitBranch, badge: "NEW" },
 ];
 
 export default function ProjectWorkspace() {
@@ -35,6 +37,13 @@ export default function ProjectWorkspace() {
   const [unread, setUnread] = useState(0);
 
   const { token } = useAuth();
+
+  const { data: currentUser } = useQuery<ApiUser>({
+    queryKey: ["/users/me"],
+    queryFn: () => api.getMe(),
+    enabled: !!token,
+    staleTime: 60000,
+  });
 
   const { data: project, isLoading } = useQuery<ApiProject>({
     queryKey: ["/projects", projectId],
@@ -95,7 +104,7 @@ export default function ProjectWorkspace() {
             </div>
           )}
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -109,9 +118,9 @@ export default function ProjectWorkspace() {
             >
               <t.icon className="w-4 h-4" />
               {t.label}
-              {t.key === "analytics" && (
+              {t.badge && (
                 <span className="ml-auto text-[9px] bg-gradient-to-r from-violet-500 to-blue-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
-                  NEW
+                  {t.badge}
                 </span>
               )}
             </button>
@@ -155,7 +164,12 @@ export default function ProjectWorkspace() {
 
         <main className="flex-1 overflow-hidden flex flex-col">
           {activeTab === "manuscript" && (
-            <ManuscriptEditor projectId={projectId} canWrite={canWrite} />
+            <ManuscriptEditor
+              projectId={projectId}
+              canWrite={canWrite}
+              userRole={role}
+              currentUserId={currentUser?.id ?? 0}
+            />
           )}
           {activeTab === "datasets" && (
             <DatasetManager projectId={projectId} canWrite={canWrite} />
@@ -168,6 +182,9 @@ export default function ProjectWorkspace() {
           )}
           {activeTab === "analytics" && (
             <ContributionsDashboard projectId={projectId} projectTitle={project?.title} />
+          )}
+          {activeTab === "reproducibility" && (
+            <ReproducibilityGraph projectId={projectId} canWrite={canWrite} />
           )}
         </main>
       </div>

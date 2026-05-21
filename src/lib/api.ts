@@ -145,6 +145,62 @@ export interface ApiContributionSummary {
   action_scores: Record<string, number>;
 }
 
+// ── Reviews ───────────────────────────────────────────────────────────────────
+
+export interface ApiReview {
+  id: number;
+  manuscript_id: number;
+  reviewer_id: number;
+  reviewer_email: string | null;
+  assigned_by: number;
+  assigned_by_email: string | null;
+  status: string;
+  comments: string | null;
+  decision: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface AssignReviewerPayload {
+  manuscript_id: number;
+  reviewer_id: number;
+  project_id: number;
+}
+
+// ── Reproducibility ───────────────────────────────────────────────────────────
+
+export interface ApiReproducibilityGraph {
+  datasets: { id: number; name: string; description: string | null; created_at: string }[];
+  experiments: { id: number; name: string; description: string | null; created_at: string }[];
+  dataset_experiment_links: { id: number; dataset_id: number; experiment_id: number; relationship_note: string | null }[];
+  experiment_manuscript_links: { id: number; experiment_id: number; manuscript_section: string; figure_reference: string | null; description: string | null }[];
+}
+
+export interface LinkDatasetPayload {
+  dataset_id: number;
+  experiment_id: number;
+  project_id: number;
+  relationship_note?: string;
+}
+
+export interface LinkExperimentPayload {
+  experiment_id: number;
+  manuscript_section: string;
+  project_id: number;
+  figure_reference?: string;
+  description?: string;
+}
+
+// ── AI Writing ────────────────────────────────────────────────────────────────
+
+export interface ApiAIWritingResponse {
+  title: string;
+  original: string;
+  suggestion: string;
+  confidence: number;
+  changes_made: number;
+}
+
 export interface ApiSuggestion {
   keywords: string[];
   title: string;
@@ -323,4 +379,45 @@ export const api = {
     request<ApiContribution[]>(`/projects/${projectId}/contributions`),
   getContributionSummary: (projectId: number) =>
     request<ApiContributionSummary>(`/projects/${projectId}/contributions/summary`),
+
+  // ── Reviews ───────────────────────────────────────────────────────────────────
+  assignReviewer: (payload: AssignReviewerPayload) =>
+    request<ApiReview>("/reviews/assign", { method: "POST", body: JSON.stringify(payload) }),
+  getProjectReviews: (projectId: number) =>
+    request<ApiReview[]>(`/reviews/project/${projectId}`),
+  getManuscriptReviews: (manuscriptId: number) =>
+    request<ApiReview[]>(`/reviews/manuscript/${manuscriptId}`),
+  getMyReviews: () =>
+    request<ApiReview[]>("/reviews/mine"),
+  addReviewComment: (reviewId: number, comments: string) =>
+    request<ApiReview>(`/reviews/${reviewId}/comment`, {
+      method: "POST",
+      body: JSON.stringify({ comments }),
+    }),
+  submitReviewDecision: (reviewId: number, decision: string, comments?: string) =>
+    request<ApiReview>(`/reviews/${reviewId}/decision`, {
+      method: "PATCH",
+      body: JSON.stringify({ decision, ...(comments ? { comments } : {}) }),
+    }),
+  getReviewHistory: (manuscriptId: number) =>
+    request<ApiReview[]>(`/reviews/history/${manuscriptId}`),
+
+  // ── Reproducibility ───────────────────────────────────────────────────────────
+  getReproducibilityGraph: (projectId: number) =>
+    request<ApiReproducibilityGraph>(`/reproducibility/project/${projectId}`),
+  linkDatasetToExperiment: (payload: LinkDatasetPayload) =>
+    request<unknown>("/reproducibility/link-dataset", { method: "POST", body: JSON.stringify(payload) }),
+  linkExperimentToManuscript: (payload: LinkExperimentPayload) =>
+    request<unknown>("/reproducibility/link-experiment", { method: "POST", body: JSON.stringify(payload) }),
+  deleteDatasetLink: (linkId: number, projectId: number) =>
+    request<void>(`/reproducibility/link-dataset/${linkId}?project_id=${projectId}`, { method: "DELETE" }),
+  deleteExperimentLink: (linkId: number, projectId: number) =>
+    request<void>(`/reproducibility/link-experiment/${linkId}?project_id=${projectId}`, { method: "DELETE" }),
+
+  // ── AI Writing ────────────────────────────────────────────────────────────────
+  aiWriting: (action: "improve-writing" | "rewrite" | "clarity" | "grammar", text: string, projectId?: number) =>
+    request<ApiAIWritingResponse>(`/ai/${action}`, {
+      method: "POST",
+      body: JSON.stringify({ text, ...(projectId ? { project_id: projectId } : {}) }),
+    }),
 };

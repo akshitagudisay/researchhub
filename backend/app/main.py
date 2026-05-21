@@ -23,6 +23,9 @@ from .routes.chat import router as chat_router
 from .routes.manuscript_ws import router as manuscript_ws_router
 from .routes.citations import router as citations_router
 from .routes.contributions import router as contributions_router
+from .routes.reviews import router as reviews_router
+from .routes.reproducibility import router as reproducibility_router
+from .routes.ai_writing import router as ai_writing_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -32,6 +35,9 @@ app.include_router(chat_router)
 app.include_router(manuscript_ws_router)
 app.include_router(citations_router)
 app.include_router(contributions_router)
+app.include_router(reviews_router)
+app.include_router(reproducibility_router)
+app.include_router(ai_writing_router)
 
 app.add_middleware(
     CORSMiddleware,
