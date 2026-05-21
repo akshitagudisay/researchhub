@@ -1,0 +1,149 @@
+Add robust real-time collaborative manuscript editing to the ResearchHub platform.
+
+IMPORTANT:
+
+* do NOT rebuild existing websocket/chat systems if already implemented
+* extend current collaboration architecture
+* keep implementation lightweight and stable for Replit
+* avoid CRDT complexity
+* no UI redesign
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Enable multiple collaborators to:
+
+* edit manuscripts simultaneously
+* see active collaborators
+* see editing presence
+* receive live updates
+* autosave edits
+* prevent overwrite conflicts
+
+System should resemble:
+
+* lightweight Google Docs
+* lightweight Overleaf
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use FastAPI WebSockets.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+WEBSOCKET COLLABORATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement or improve:
+
+* project manuscript websocket rooms
+* authenticated websocket connections
+* live edit broadcasting
+* reconnect support
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REAL-TIME FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Support:
+
+* live text sync
+* autosave every few seconds
+* active collaborator tracking
+* typing indicators
+* section editing indicators
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PRESENCE TRACKING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show:
+
+* who is online
+* who is editing
+* which section is being edited
+
+Example:
+"Akshita editing Methodology"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CONFLICT HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement lightweight protection:
+
+* temporary section locking
+* last-write protection
+* autosave recovery
+
+Prevent:
+
+* disappearing text
+* overwrite conflicts
+* stale edits
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VERSION SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Before autosave:
+
+* backup previous version
+* preserve manuscript history
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━
+LIVE EDITOR
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Improve current manuscript editor:
+
+* live updates without refresh
+* collaborator presence badges
+* autosave indicator
+* realtime edit sync
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EDIT HIGHLIGHTING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Highlight:
+
+* recently edited sections
+* collaborator editing activity
+
+━━━━━━━━━━━━━━━━━━━━━━━
+AUTOSAVE UI
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show:
+
+* Saving...
+* Saved
+* Reconnecting...
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STABILITY REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Prevent:
+
+* websocket crashes
+* infinite update loops
+* duplicated edits
+* disappearing manuscript text
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+If websocket collaboration already exists:
+
+* improve existing implementation
+* avoid duplicate websocket managers
+* preserve compatibility with current chat system
