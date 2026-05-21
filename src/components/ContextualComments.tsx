@@ -207,7 +207,6 @@ export default function ContextualComments({
   const { data: comments, isLoading, isError } = useQuery<ApiComment[]>({
     queryKey,
     queryFn: () => api.getComments(projectId, targetType, targetId),
-    staleTime: 5000,
   });
 
   const createMutation = useMutation({

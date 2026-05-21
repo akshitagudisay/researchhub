@@ -1,0 +1,326 @@
+Fix the contextual comment system and export functionality in the ResearchHub platform.
+
+Current issues:
+
+1. Newly posted comments are automatically going into "Resolved" state immediately after creation
+2. Comments cannot be reopened back to unresolved state
+3. Resolve/unresolve workflow is broken
+4. Export system (PDF/DOCX) is not functioning
+5. Export buttons either fail silently or do nothing
+
+IMPORTANT:
+
+* do NOT redesign the UI
+* fix the backend logic and frontend state management
+* preserve existing comments and export architecture if already implemented
+* improve current implementation instead of rebuilding everything
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — COMMENT SYSTEM FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ROOT ISSUE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Currently:
+
+* comments are being created with status = resolved
+  OR
+* frontend automatically moves them into resolved section after posting
+
+This is incorrect behavior.
+
+New comments should ALWAYS:
+
+* appear under Active/Open Comments
+* remain unresolved until user explicitly clicks Resolve
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND COMMENT FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix Comment model.
+
+Ensure fields:
+
+* id
+* content
+* user_id
+* target_type
+* target_id
+* parent_id
+* is_resolved
+* created_at
+
+IMPORTANT:
+Default:
+is_resolved = False
+
+Do NOT default to True.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+COMMENT CREATION ROUTE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix POST comment endpoint.
+
+When creating new comments:
+
+* force is_resolved=False
+* prevent frontend override
+* return updated comment state properly
+
+━━━━━━━━━━━━━━━━━━━━━━━
+RESOLVE / UNRESOLVE LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement proper toggle behavior.
+
+Create or fix:
+PATCH /comments/{id}/resolve
+
+Behavior:
+If unresolved:
+→ mark resolved
+
+If resolved:
+→ reopen comment
+→ move back into active comments
+
+This should work like:
+toggle resolve status
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND COMMENT STATE FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix frontend rendering logic.
+
+Separate sections:
+
+1. Active Comments
+2. Resolved Comments
+
+New comments must:
+
+* immediately appear in Active Comments
+* not auto-jump to resolved
+
+━━━━━━━━━━━━━━━━━━━━━━━
+RESOLVE BUTTON FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Current button likely:
+
+* permanently resolves
+* no undo support
+
+Fix:
+Button toggles dynamically.
+
+Examples:
+If unresolved:
+→ button shows "Resolve"
+
+If resolved:
+→ button shows "Reopen"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+UI STATE UPDATE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+After clicking:
+
+* Resolve
+  OR
+* Reopen
+
+Frontend should:
+
+* instantly update UI
+* move comment between sections
+* avoid refresh requirement
+
+━━━━━━━━━━━━━━━━━━━━━━━
+THREAD PRESERVATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure:
+
+* replies remain attached
+* threaded comments persist
+* reopening preserves discussion history
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PERMISSIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Owner/editor:
+
+* resolve comments
+* reopen comments
+
+Viewer:
+
+* read only
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — EXPORT SYSTEM FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+
+* export buttons do nothing
+  OR
+* requests fail
+  OR
+* generated files are broken
+
+Fix FULL export pipeline.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND EXPORT FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Verify export endpoints:
+
+POST /export/pdf
+POST /export/docx
+
+Ensure:
+
+* routes exist
+* manuscript content fetched correctly
+* citations included
+* proper file generated
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PDF EXPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Use lightweight stable libraries:
+
+* reportlab
+  OR
+* weasyprint
+
+Generate:
+
+* title
+* sections
+* citations
+* bibliography
+* authors
+
+Return:
+FileResponse downloadable PDF
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DOCX EXPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Use:
+python-docx
+
+Generate proper:
+
+* headings
+* sections
+* references
+* formatting
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPORT FAILURE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix:
+
+* empty manuscript crashes
+* missing citation crashes
+* malformed document generation
+* failed temporary file handling
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND EXPORT FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure export buttons:
+
+* call correct APIs
+* send JWT token
+* download returned file properly
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DOWNLOAD FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+When user clicks:
+Export PDF
+OR
+Export DOCX
+
+System should:
+
+1. generate file
+2. trigger browser download
+3. preserve proper filename
+
+Example:
+protein-analysis-manuscript.pdf
+
+━━━━━━━━━━━━━━━━━━━━━━━
+LOADING STATES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show:
+
+* Generating PDF...
+* Exporting DOCX...
+* Download Ready
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ERROR STATES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show proper messages:
+
+* export failed
+* manuscript empty
+* backend unavailable
+
+NO silent failures.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — STABILITY CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check for additional bugs in:
+
+* comment threading
+* comment persistence
+* export downloads
+* citation inclusion
+* manuscript formatting
+
+Ensure:
+
+* comments persist after refresh
+* export works after relogin
+* collaborators can export if permitted
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT break:
+
+* realtime collaboration
+* datasets
+* experiments
+* AI assistant
+* citation system
+* knowledge graph
+* auth/permissions
+
+Keep implementation modular and production-like.

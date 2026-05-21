@@ -60,4 +60,34 @@ def run_migrations():
             if "integrity_verified" not in cols:
                 conn.execute(text("ALTER TABLE datasets ADD COLUMN integrity_verified VARCHAR"))
 
+        # Fix comments.resolved stored as VARCHAR instead of INTEGER
+        # bool('0') == True in Python, so every comment appeared "Resolved"
+        if "comments" in tables:
+            cols = {c["name"]: str(c["type"]).upper() for c in inspector.get_columns("comments")}
+            if cols.get("resolved", "") in ("VARCHAR", "TEXT", "BOOLEAN", "NVARCHAR", "CHAR"):
+                conn.execute(text("ALTER TABLE comments RENAME TO _comments_old"))
+                conn.execute(text("""
+                    CREATE TABLE comments (
+                        id INTEGER NOT NULL,
+                        project_id INTEGER NOT NULL,
+                        target_type VARCHAR NOT NULL,
+                        target_id VARCHAR NOT NULL,
+                        parent_id INTEGER,
+                        author_id INTEGER NOT NULL,
+                        content TEXT NOT NULL,
+                        resolved INTEGER NOT NULL DEFAULT 0,
+                        created_at DATETIME NOT NULL,
+                        PRIMARY KEY (id)
+                    )
+                """))
+                conn.execute(text("""
+                    INSERT INTO comments (id, project_id, target_type, target_id, parent_id,
+                                         author_id, content, resolved, created_at)
+                    SELECT id, project_id, target_type, target_id, parent_id,
+                           author_id, content,
+                           CASE WHEN CAST(resolved AS TEXT) IN ('1','true','True') THEN 1 ELSE 0 END,
+                           created_at FROM _comments_old
+                """))
+                conn.execute(text("DROP TABLE _comments_old"))
+
         conn.commit()

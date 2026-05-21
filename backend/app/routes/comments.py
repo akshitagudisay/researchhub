@@ -49,6 +49,22 @@ def _get_user_role(project: models.Project, user: models.User, db: Session) -> s
     return collab.role if collab else "none"
 
 
+def _resolved_bool(val) -> bool:
+    """Safely convert resolved column value to bool.
+    SQLite may store Boolean as VARCHAR '0'/'1' — bool('0') == True in Python,
+    so we must handle string representations explicitly.
+    """
+    if val is None:
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, int):
+        return val != 0
+    if isinstance(val, (str, bytes)):
+        return str(val).strip().lower() in ("1", "true", "yes")
+    return bool(val)
+
+
 def _serialize(comment: models.Comment, author_email: str, replies: list) -> dict:
     return {
         "id": comment.id,
@@ -59,7 +75,7 @@ def _serialize(comment: models.Comment, author_email: str, replies: list) -> dic
         "author_id": comment.author_id,
         "author_email": author_email,
         "content": comment.content,
-        "resolved": bool(comment.resolved),
+        "resolved": _resolved_bool(comment.resolved),
         "created_at": comment.created_at.isoformat(),
         "replies": replies,
     }
@@ -157,9 +173,10 @@ def resolve_comment(
     if role not in ("owner", "editor"):
         raise HTTPException(status_code=403, detail="Viewers cannot resolve comments")
 
-    comment.resolved = payload.resolved
+    comment.resolved = 1 if payload.resolved else 0
     db.commit()
-    return {"id": comment.id, "resolved": comment.resolved}
+    db.refresh(comment)
+    return {"id": comment.id, "resolved": _resolved_bool(comment.resolved)}
 
 
 @router.delete("/{comment_id}", status_code=204)

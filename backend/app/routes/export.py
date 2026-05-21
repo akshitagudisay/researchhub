@@ -183,7 +183,13 @@ def export_pdf(
                 if style == "ieee":
                     ref = cit.formatted_ieee or f"[{i}] {cit.title}. {cit.journal or ''}, {cit.year or ''}."
                 else:
-                    ref = cit.formatted_apa or f"{', '.join(json.loads(cit.authors) if isinstance(cit.authors, str) else cit.authors)} ({cit.year or 'n.d.'}). {cit.title}. {cit.journal or ''}."
+                    try:
+                        raw = cit.authors or "[]"
+                        alist = json.loads(raw) if isinstance(raw, str) else (raw if isinstance(raw, list) else [])
+                        author_str = ", ".join(str(a) for a in alist) if alist else ""
+                    except Exception:
+                        author_str = ""
+                    ref = cit.formatted_apa or f"{author_str} ({cit.year or 'n.d.'}). {cit.title}. {cit.journal or ''}."
                 safe_ref = ref.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 story.append(Paragraph(safe_ref, bib_style))
 
@@ -279,8 +285,13 @@ def export_docx(
                 if style == "ieee":
                     ref = cit.formatted_ieee or f"[{i}] {cit.title}. {cit.journal or ''}, {cit.year or ''}."
                 else:
-                    authors_list = json.loads(cit.authors) if isinstance(cit.authors, str) else cit.authors
-                    ref = cit.formatted_apa or f"{', '.join(authors_list)} ({cit.year or 'n.d.'}). {cit.title}. {cit.journal or ''}."
+                    try:
+                        raw = cit.authors or "[]"
+                        authors_list = json.loads(raw) if isinstance(raw, str) else (raw if isinstance(raw, list) else [])
+                        author_str = ", ".join(str(a) for a in authors_list) if authors_list else ""
+                    except Exception:
+                        author_str = ""
+                    ref = cit.formatted_apa or f"{author_str} ({cit.year or 'n.d.'}). {cit.title}. {cit.journal or ''}."
                 ref_para = doc.add_paragraph()
                 ref_para.paragraph_format.left_indent = Inches(0.3)
                 run = ref_para.add_run(ref)
