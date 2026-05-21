@@ -329,6 +329,10 @@ export default function ManuscriptEditor({ projectId, canWrite = true }: Props) 
         await api.saveManuscript(projectId, currentJson);
         lastSavedJsonRef.current = currentJson;
         setSaveStatus("saved");
+        // Refresh suggestions with updated manuscript content
+        queryClient.invalidateQueries({
+          queryKey: ["/projects", projectId, "citations", "suggestions"],
+        });
         setTimeout(() => setSaveStatus(s => s === "saved" ? "idle" : s), 3000);
       } catch {
         setSaveStatus("error");

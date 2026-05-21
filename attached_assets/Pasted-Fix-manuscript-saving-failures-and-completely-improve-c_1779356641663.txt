@@ -1,0 +1,349 @@
+Fix manuscript saving failures and completely improve citation/research suggestion quality in the ResearchHub platform.
+
+Current critical issues:
+
+1. Manuscript saving gives:
+   "Request Failed"
+
+2. Autosave is failing intermittently
+
+3. Manuscript content still disappears sometimes
+
+4. Citation/research suggestions are:
+
+* inaccurate
+* repetitive
+* too few
+* unrelated to manuscript content
+
+5. Suggestion engine currently feels fake/broken
+
+IMPORTANT:
+This task is ONLY for:
+
+* fixing saving reliability
+* fixing API failures
+* improving suggestion intelligence
+
+Do NOT redesign UI.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — FIX SAVE REQUEST FAILURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+Saving manuscript sometimes returns:
+
+* Request Failed
+* network/API error
+* failed autosave
+
+Investigate entire frontend ↔ backend save flow.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND DEBUGGING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Check all manuscript save endpoints:
+
+PATCH /projects/{project_id}/manuscript
+
+Verify:
+
+* route exists
+* request body matches frontend
+* proper JSON parsing
+* db.commit() executes
+* db.refresh() executes
+* no silent exceptions
+
+Add proper try/catch handling.
+
+Return proper error responses:
+{
+"detail": "specific error"
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Verify:
+
+* manuscript table exists
+* project_id relationships valid
+* no null constraint issues
+* manuscript rows initialize correctly
+
+Fix cases where:
+
+* manuscript record does not exist yet
+* PATCH tries updating null object
+
+If manuscript missing:
+→ auto-create manuscript row.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND SAVE FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix save request logic.
+
+Current likely issues:
+
+* malformed fetch body
+* missing token
+* websocket overwrite
+* async race condition
+* empty save requests
+
+Ensure:
+
+* JWT token included
+* request payload valid JSON
+* debounced autosave
+* retries on temporary failure
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SAVE STATUS SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement stable save states:
+
+* Saving...
+* Saved
+* Save Failed
+* Reconnecting...
+
+Display save errors properly.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PREVENT DATA LOSS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT:
+Never overwrite existing manuscript with:
+
+* null
+* empty string
+* stale websocket state
+
+Add protection:
+if incoming content empty AND database has content
+→ reject overwrite.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — IMPROVE RESEARCH/CITATION SUGGESTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current suggestion system is weak:
+
+* inaccurate
+* generic
+* only few suggestions
+* unrelated to manuscript topic
+
+Improve suggestion quality significantly while remaining lightweight.
+
+Do NOT use heavy AI infrastructure.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+NEW SUGGESTION STRATEGY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement smarter keyword/topic extraction.
+
+Analyze manuscript for:
+
+* scientific keywords
+* repeated technical phrases
+* domain topics
+
+Generate suggestions dynamically.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+TOPIC DETECTION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Support multiple domains:
+
+Examples:
+
+If manuscript contains:
+
+* protein folding
+* molecular biology
+* amino acid
+  → suggest:
+  AlphaFold
+  DeepMind protein structure papers
+  Nature biotechnology references
+
+───────────────────────
+
+If manuscript contains:
+
+* transformer
+* attention mechanism
+* NLP
+  → suggest:
+  Attention Is All You Need
+  BERT
+  GPT papers
+
+───────────────────────
+
+If manuscript contains:
+
+* graph neural network
+* node embeddings
+  → suggest:
+  Graph Attention Networks
+  GraphSAGE
+
+───────────────────────
+
+If manuscript contains:
+
+* federated learning
+  → suggest:
+  communication-efficient learning papers
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SUGGESTION ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create lightweight topic engine:
+
+1. Extract keywords from manuscript
+2. Match against curated research map
+3. Generate:
+
+* citations
+* related papers
+* research directions
+
+Return 5–10 suggestions minimum.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND IMPROVEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Improve:
+POST /citations/suggestions
+
+Return:
+[
+{
+"title": "...",
+"authors": "...",
+"year": 2020,
+"reason": "...",
+"domain": "...",
+"confidence": 0.91
+}
+]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND SUGGESTION FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Improve suggestions tab.
+
+Requirements:
+
+* show multiple suggestion cards
+* sort by confidence
+* better loading state
+* refresh suggestions automatically after manuscript updates
+
+Each card should contain:
+
+* title
+* authors
+* year
+* relevance reason
+* confidence badge
+* insert citation button
+
+━━━━━━━━━━━━━━━━━━━━━━━
+LIVE SUGGESTIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+After manuscript autosaves:
+→ refresh suggestion engine automatically.
+
+Suggestions should evolve with manuscript content.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EMPTY STATE FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+"Write more manuscript content"
+
+even when manuscript has content.
+
+Fix:
+
+* ensure manuscript content actually passed to suggestion API
+* ensure editor state synced before request
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — ADD DEBUGGING + LOGGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add debugging logs for:
+
+* save requests
+* autosave
+* websocket updates
+* suggestion generation
+* API failures
+
+Display clear console/backend logs.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED FINAL BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.
+
+User writes manuscript
+→ autosave succeeds reliably
+→ no Request Failed errors
+→ content persists after refresh
+
+2.
+
+Suggestions analyze actual manuscript
+→ produce relevant scientific papers
+→ dynamically update
+
+3.
+
+Protein folding manuscript
+→ gets biology/protein AI suggestions
+NOT random unrelated papers
+
+4.
+
+Save Version + autosave both work reliably
+
+5.
+
+No more disappearing manuscript content
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT break:
+
+* collaboration
+* websocket sync
+* version history
+* citation manager
+* realtime editing
+
+Keep implementation lightweight but intelligent.

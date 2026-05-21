@@ -154,6 +154,9 @@ export interface ApiSuggestion {
   doi: string;
   formatted_apa: string;
   formatted_ieee: string;
+  domain?: string;
+  reason?: string;
+  confidence?: number;
 }
 
 function getToken(): string | null {

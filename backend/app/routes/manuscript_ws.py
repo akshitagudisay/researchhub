@@ -141,46 +141,69 @@ async def manuscript_ws(
                 if section not in SECTIONS:
                     continue
 
-                db.refresh(db.query(models.Manuscript).filter(
-                    models.Manuscript.project_id == project_id
-                ).first() or models.Manuscript())
+                # Guard: never overwrite persisted content with empty string
+                if not new_content.strip():
+                    existing_manuscript = db.query(models.Manuscript).filter(
+                        models.Manuscript.project_id == project_id
+                    ).first()
+                    if existing_manuscript:
+                        existing_content = _load_content(existing_manuscript)
+                        if existing_content.get(section, "").strip():
+                            print(f"[WS] Rejecting empty overwrite for section '{section}' in project {project_id}")
+                            continue
 
-                manuscript = db.query(models.Manuscript).filter(
-                    models.Manuscript.project_id == project_id
-                ).first()
+                try:
+                    # Fresh query — no stale object refresh needed
+                    manuscript = db.query(models.Manuscript).filter(
+                        models.Manuscript.project_id == project_id
+                    ).first()
 
-                content_dict = _load_content(manuscript)
-                content_dict[section] = new_content
-                content_json = json.dumps(content_dict)
+                    content_dict = _load_content(manuscript)
+                    content_dict[section] = new_content
+                    content_json = json.dumps(content_dict)
 
-                now = datetime.utcnow()
-                if manuscript:
-                    manuscript.content = content_json
-                    manuscript.updated_at = now
-                else:
-                    manuscript = models.Manuscript(
-                        content=content_json,
-                        project_id=project_id,
-                        updated_at=now,
-                    )
-                    db.add(manuscript)
-                db.commit()
+                    now = datetime.utcnow()
+                    if manuscript:
+                        manuscript.content = content_json
+                        manuscript.updated_at = now
+                    else:
+                        manuscript = models.Manuscript(
+                            content=content_json,
+                            project_id=project_id,
+                            updated_at=now,
+                        )
+                        db.add(manuscript)
+                    db.commit()
 
-                _log_contribution(db, user.id, project_id, "manuscript_edit", SCORE_MANUSCRIPT_EDIT, {"section": section})
+                    print(f"[WS] Saved section '{section}' for project {project_id} by user {user.id}")
 
-                await websocket.send_json({
-                    "type": "autosaved",
-                    "section": section,
-                    "timestamp": now.isoformat(),
-                })
+                    _log_contribution(db, user.id, project_id, "manuscript_edit", SCORE_MANUSCRIPT_EDIT, {"section": section})
 
-                await manuscript_manager.broadcast_except(project_id, user.id, {
-                    "type": "edit",
-                    "section": section,
-                    "content": new_content,
-                    "editor_id": user.id,
-                    "editor_email": user.email,
-                })
+                    await websocket.send_json({
+                        "type": "autosaved",
+                        "section": section,
+                        "timestamp": now.isoformat(),
+                    })
+
+                    await manuscript_manager.broadcast_except(project_id, user.id, {
+                        "type": "edit",
+                        "section": section,
+                        "content": new_content,
+                        "editor_id": user.id,
+                        "editor_email": user.email,
+                    })
+
+                except Exception as exc:
+                    print(f"[WS] Edit save error for project {project_id}, section '{section}': {exc}")
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    await websocket.send_json({
+                        "type": "save_error",
+                        "section": section,
+                        "message": "Save failed — please retry",
+                    })
 
             elif msg_type == "section_blur":
                 section = data.get("section", "")
@@ -194,6 +217,8 @@ async def manuscript_ws(
 
     except WebSocketDisconnect:
         pass
+    except Exception as exc:
+        print(f"[WS] Unhandled error in manuscript_ws for project {project_id}: {exc}")
     finally:
         manuscript_manager.disconnect(project_id, user.id)
         await manuscript_manager.broadcast_all(project_id, {

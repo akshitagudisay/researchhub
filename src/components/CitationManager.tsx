@@ -115,6 +115,13 @@ function CitationCard({
 
 // ── Suggestion Card ───────────────────────────────────────────────────────────
 
+function confidenceColor(c?: number) {
+  if (!c) return "bg-muted text-muted-foreground";
+  if (c >= 0.80) return "bg-emerald-100 text-emerald-700";
+  if (c >= 0.60) return "bg-amber-100 text-amber-700";
+  return "bg-muted text-muted-foreground";
+}
+
 function SuggestionCard({
   s,
   onAdd,
@@ -126,12 +133,28 @@ function SuggestionCard({
   canWrite: boolean;
   isAdding: boolean;
 }) {
+  const authorStr = s.authors.slice(0, 2).join(", ") + (s.authors.length > 2 ? " et al." : "");
   return (
     <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 space-y-1.5">
-      <p className="text-[11px] font-semibold text-foreground leading-snug">{s.title}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-semibold text-foreground leading-snug flex-1">{s.title}</p>
+        {s.confidence !== undefined && (
+          <span className={`flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${confidenceColor(s.confidence)}`}>
+            {Math.round(s.confidence * 100)}%
+          </span>
+        )}
+      </div>
       <p className="text-[10px] text-muted-foreground">
-        {s.authors.slice(0, 2).join(", ")} · {s.journal} {s.year}
+        {authorStr} · {s.journal} · {s.year}
       </p>
+      {s.domain && (
+        <span className="inline-block text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
+          {s.domain}
+        </span>
+      )}
+      {s.reason && (
+        <p className="text-[10px] text-muted-foreground italic leading-snug">{s.reason}</p>
+      )}
       {canWrite && (
         <Button
           variant="outline"
