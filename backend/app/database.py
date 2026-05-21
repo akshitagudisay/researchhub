@@ -44,5 +44,20 @@ def run_migrations():
                 conn.execute(text("ALTER TABLE experiments ADD COLUMN attachment_stored_name VARCHAR"))
             if "linked_dataset_ids" not in cols:
                 conn.execute(text("ALTER TABLE experiments ADD COLUMN linked_dataset_ids TEXT"))
+            if "ipfs_hash" not in cols:
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN ipfs_hash VARCHAR"))
+            if "ipfs_uploaded_at" not in cols:
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN ipfs_uploaded_at DATETIME"))
+            if "integrity_verified" not in cols:
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN integrity_verified VARCHAR"))
+
+        if "datasets" in tables:
+            cols = {c["name"] for c in inspector.get_columns("datasets")}
+            if "ipfs_hash" not in cols:
+                conn.execute(text("ALTER TABLE datasets ADD COLUMN ipfs_hash VARCHAR"))
+            if "ipfs_uploaded_at" not in cols:
+                conn.execute(text("ALTER TABLE datasets ADD COLUMN ipfs_uploaded_at DATETIME"))
+            if "integrity_verified" not in cols:
+                conn.execute(text("ALTER TABLE datasets ADD COLUMN integrity_verified VARCHAR"))
 
         conn.commit()

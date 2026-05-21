@@ -29,6 +29,7 @@ from .routes.ai_writing import router as ai_writing_router
 from .routes.file_manager import router as file_manager_router
 from .routes.search import router as search_router
 from .routes.presence import router as presence_router
+from .routes.ipfs import router as ipfs_router
 
 Base.metadata.create_all(bind=engine)
 run_migrations()
@@ -45,6 +46,7 @@ app.include_router(ai_writing_router)
 app.include_router(file_manager_router)
 app.include_router(search_router)
 app.include_router(presence_router)
+app.include_router(ipfs_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -416,6 +418,9 @@ def list_datasets(
             "has_file": bool(d.file_path),
             "project_id": d.project_id,
             "created_at": d.created_at.isoformat(),
+            "ipfs_hash": d.ipfs_hash,
+            "ipfs_uploaded_at": d.ipfs_uploaded_at.isoformat() if d.ipfs_uploaded_at else None,
+            "integrity_verified": d.integrity_verified,
         })
     return result
 
@@ -533,6 +538,9 @@ def list_experiments(
             "has_attachment": bool(e.attachment_path),
             "project_id": e.project_id,
             "created_at": e.created_at.isoformat(),
+            "ipfs_hash": e.ipfs_hash,
+            "ipfs_uploaded_at": e.ipfs_uploaded_at.isoformat() if e.ipfs_uploaded_at else None,
+            "integrity_verified": e.integrity_verified,
         })
     return result
 

@@ -56,6 +56,9 @@ class Dataset(Base):
     file_path = Column(String, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ipfs_hash = Column(String, nullable=True)
+    ipfs_uploaded_at = Column(DateTime, nullable=True)
+    integrity_verified = Column(String, nullable=True)
 
     project = relationship("Project", back_populates="datasets")
     uploader = relationship("User", foreign_keys=[uploaded_by])
@@ -75,6 +78,9 @@ class Experiment(Base):
     linked_dataset_ids = Column(Text, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ipfs_hash = Column(String, nullable=True)
+    ipfs_uploaded_at = Column(DateTime, nullable=True)
+    integrity_verified = Column(String, nullable=True)
 
     project = relationship("Project", back_populates="experiments")
 

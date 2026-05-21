@@ -1,0 +1,142 @@
+Add decentralized research storage using IPFS to the ResearchHub platform.
+
+IMPORTANT:
+
+* if partial IPFS implementation already exists, improve it instead of rebuilding
+* keep implementation lightweight and demo-friendly
+* avoid breaking existing dataset uploads/downloads
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Enable immutable decentralized storage for:
+
+* manuscripts
+* datasets
+* exports
+
+using:
+
+* IPFS hashes
+* decentralized archival
+* tamper-resistant verification
+
+This feature should demonstrate:
+“Research integrity through decentralized immutable storage.”
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use:
+
+* lightweight IPFS client
+* Pinata OR local IPFS node if easier
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IPFS STORAGE FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+When user uploads:
+
+* dataset
+* manuscript export
+* experiment attachment
+
+System should:
+
+1. upload file to IPFS
+2. receive IPFS hash
+3. store hash in database
+4. link hash to project resources
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE UPDATES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Add fields:
+
+* ipfs_hash
+* ipfs_uploaded_at
+* integrity_verified
+
+━━━━━━━━━━━━━━━━━━━━━━━
+INTEGRITY VERIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement:
+Verify File Integrity button
+
+System should:
+
+* compare file hash
+* confirm tamper resistance
+
+━━━━━━━━━━━━━━━━━━━━━━━
+RETRIEVAL SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Allow:
+
+* retrieving files using IPFS hash
+* downloading from decentralized storage
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FAILURE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+If IPFS upload fails:
+
+* preserve normal local upload
+* avoid breaking dataset system
+
+IPFS should enhance storage,
+NOT replace local persistence entirely.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IPFS STATUS UI
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Display:
+
+* decentralized storage badge
+* IPFS hash
+* integrity verification status
+
+Example:
+QmX8a7...
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DOWNLOAD OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Allow:
+
+* local download
+* IPFS retrieval
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VISUAL INDICATORS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show:
+
+* immutable storage
+* decentralized archive enabled
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT:
+
+* remove existing upload system
+* break collaborator downloads
+* break experiment attachments
+
+Enhance current architecture safely.

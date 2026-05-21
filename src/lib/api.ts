@@ -37,6 +37,9 @@ export interface ApiDataset {
   has_file: boolean;
   project_id: number;
   created_at: string;
+  ipfs_hash: string | null;
+  ipfs_uploaded_at: string | null;
+  integrity_verified: string | null;
 }
 
 export interface ApiInvite {
@@ -91,6 +94,23 @@ export interface ApiExperiment {
   has_attachment: boolean;
   project_id: number;
   created_at: string;
+  ipfs_hash: string | null;
+  ipfs_uploaded_at: string | null;
+  integrity_verified: string | null;
+}
+
+export interface ApiIpfsResult {
+  ipfs_hash: string;
+  ipfs_uploaded_at: string;
+  integrity_verified: string;
+  gateway_url: string;
+}
+
+export interface ApiIpfsVerify {
+  ipfs_hash: string;
+  integrity_verified: string;
+  match: boolean;
+  gateway_url: string;
 }
 
 export interface ApiAccessRequest {
@@ -565,6 +585,16 @@ export const api = {
       last_seen: string;
       is_me: boolean;
     }[]>(`/presence/project/${projectId}`),
+
+  // ── IPFS ──────────────────────────────────────────────────────────────────────
+  pinDataset: (datasetId: number) =>
+    request<ApiIpfsResult>(`/ipfs/datasets/${datasetId}/pin`, { method: "POST" }),
+  verifyDataset: (datasetId: number) =>
+    request<ApiIpfsVerify>(`/ipfs/datasets/${datasetId}/verify`),
+  pinExperiment: (experimentId: number) =>
+    request<ApiIpfsResult>(`/ipfs/experiments/${experimentId}/pin`, { method: "POST" }),
+  verifyExperiment: (experimentId: number) =>
+    request<ApiIpfsVerify>(`/ipfs/experiments/${experimentId}/verify`),
 
   // ── Search ────────────────────────────────────────────────────────────────────
   searchProjects: (params: { q?: string; role?: string; created_by?: string; collaborator?: string }) => {

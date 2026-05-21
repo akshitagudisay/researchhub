@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Paperclip, Clock, FlaskConical, Eye, Download, Trash2, RefreshCw, Database, Upload } from "lucide-react";
+import { Plus, Paperclip, Clock, FlaskConical, Eye, Download, Trash2, RefreshCw, Database, Upload, Shield, ShieldCheck, ShieldAlert, Link2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const ALLOWED_EXTS = [".txt", ".csv", ".json", ".png", ".jpg", ".jpeg", ".pdf", ".zip"];
@@ -355,20 +355,55 @@ export default function ExperimentLogs({ projectId, canWrite = true }: Props) {
 
                   {/* Real attachment */}
                   {exp.has_attachment && exp.attachment_filename && (
-                    <div className="mt-3 flex items-center gap-2 p-2 rounded-md bg-muted/50 border">
-                      <span className="text-base">{fileTypeIcon(exp.attachment_filename)}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{exp.attachment_filename}</p>
-                        <p className="text-xs text-muted-foreground">Attachment</p>
+                    <div className="mt-3 p-2 rounded-md bg-muted/50 border space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{fileTypeIcon(exp.attachment_filename)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-xs font-medium text-foreground truncate">{exp.attachment_filename}</p>
+                            {exp.ipfs_hash && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-teal-100 text-teal-700 font-medium">
+                                <Link2 className="w-2.5 h-2.5" /> Decentralized
+                              </span>
+                            )}
+                            {exp.integrity_verified === "verified" && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium">
+                                <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                              </span>
+                            )}
+                            {exp.integrity_verified === "tampered" && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 font-medium">
+                                <ShieldAlert className="w-2.5 h-2.5" /> Tampered
+                              </span>
+                            )}
+                          </div>
+                          {exp.ipfs_hash && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="font-mono text-[10px] text-teal-700 bg-teal-50 px-1 py-0.5 rounded">
+                                {exp.ipfs_hash.slice(0, 6)}…{exp.ipfs_hash.slice(-4)}
+                              </span>
+                              <a
+                                href={`https://ipfs.io/ipfs/${exp.ipfs_hash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-0.5 text-[10px] text-teal-600 hover:underline"
+                              >
+                                <ExternalLink className="w-2.5 h-2.5" /> IPFS
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => api.downloadExperiment(exp.id)}
+                          >
+                            <Download className="w-3 h-3 mr-1" /> Download
+                          </Button>
+                        </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => api.downloadExperiment(exp.id)}
-                      >
-                        <Download className="w-3 h-3 mr-1" /> Download
-                      </Button>
                     </div>
                   )}
 

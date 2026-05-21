@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
 from ..auth import get_current_user
+from ..ipfs_client import compute_cid
 
 router = APIRouter(tags=["files"])
 
@@ -115,6 +117,12 @@ async def upload_dataset(
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}") from exc
 
+    ipfs_hash: str | None = None
+    try:
+        ipfs_hash = compute_cid(contents)
+    except Exception:
+        ipfs_hash = None
+
     dataset = models.Dataset(
         project_id=project_id,
         name=name.strip() or Path(original_name).stem,
@@ -124,6 +132,9 @@ async def upload_dataset(
         uploaded_by=current_user.id,
         stored_filename=stored_name,
         file_path=str(dest),
+        ipfs_hash=ipfs_hash,
+        ipfs_uploaded_at=datetime.utcnow() if ipfs_hash else None,
+        integrity_verified="verified" if ipfs_hash else None,
     )
     db.add(dataset)
     try:
@@ -150,6 +161,9 @@ async def upload_dataset(
         "has_file": True,
         "project_id": dataset.project_id,
         "created_at": dataset.created_at.isoformat(),
+        "ipfs_hash": dataset.ipfs_hash,
+        "ipfs_uploaded_at": dataset.ipfs_uploaded_at.isoformat() if dataset.ipfs_uploaded_at else None,
+        "integrity_verified": dataset.integrity_verified,
     }
 
 
@@ -221,6 +235,14 @@ async def upload_experiment(
         except OSError as exc:
             raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}") from exc
 
+    exp_ipfs_hash: str | None = None
+    if attachment_path_str and stored_name:
+        try:
+            exp_contents = Path(attachment_path_str).read_bytes()
+            exp_ipfs_hash = compute_cid(exp_contents)
+        except Exception:
+            exp_ipfs_hash = None
+
     experiment = models.Experiment(
         project_id=project_id,
         name=name.strip(),
@@ -230,6 +252,9 @@ async def upload_experiment(
         attachment_filename=original_name,
         attachment_stored_name=stored_name,
         linked_dataset_ids=dataset_ids.strip() or None,
+        ipfs_hash=exp_ipfs_hash,
+        ipfs_uploaded_at=datetime.utcnow() if exp_ipfs_hash else None,
+        integrity_verified="verified" if exp_ipfs_hash else None,
     )
     db.add(experiment)
     try:
@@ -280,6 +305,9 @@ async def upload_experiment(
         "has_attachment": bool(experiment.attachment_path),
         "project_id": experiment.project_id,
         "created_at": experiment.created_at.isoformat(),
+        "ipfs_hash": experiment.ipfs_hash,
+        "ipfs_uploaded_at": experiment.ipfs_uploaded_at.isoformat() if experiment.ipfs_uploaded_at else None,
+        "integrity_verified": experiment.integrity_verified,
     }
 
 

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileText, Plus, HardDrive, Trash2, Eye, Download, User, RefreshCw } from "lucide-react";
+import { Upload, FileText, Plus, HardDrive, Trash2, Eye, Download, User, RefreshCw, Shield, ShieldCheck, ShieldAlert, Link2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const ALLOWED_EXTS = [".csv", ".xlsx", ".json", ".txt", ".zip"];
@@ -22,6 +22,10 @@ function fileTypeIcon(filename: string | null) {
   const ext = filename.split(".").pop()?.toLowerCase();
   const map: Record<string, string> = { csv: "📊", xlsx: "📊", json: "📋", txt: "📝", zip: "🗜️" };
   return map[ext ?? ""] ?? "📄";
+}
+
+function shortenHash(hash: string) {
+  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
 }
 
 interface Props {
@@ -39,6 +43,8 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
   const [form, setForm] = useState({ name: "", description: "" });
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const [pinningId, setPinningId] = useState<number | null>(null);
 
   const { data: datasets, isLoading } = useQuery<ApiDataset[]>({
     queryKey: ["/projects", projectId, "datasets"],
@@ -61,7 +67,7 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
       setUploadProgress(null);
       setUploadError(null);
       setOpen(false);
-      toast({ title: "Dataset uploaded", description: "File saved permanently to the project." });
+      toast({ title: "Dataset uploaded", description: "File saved and pinned to decentralized storage." });
     },
     onError: (err: Error) => {
       setUploadProgress(null);
@@ -80,6 +86,42 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
       toast({ title: "Delete failed", description: err.message, variant: "destructive" });
     },
   });
+
+  const handleVerify = async (d: ApiDataset) => {
+    setVerifyingId(d.id);
+    try {
+      const result = await (d.ipfs_hash ? api.verifyDataset(d.id) : api.pinDataset(d.id));
+      queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "datasets"] });
+      if ("match" in result) {
+        if (result.match) {
+          toast({ title: "Integrity verified", description: "File matches its decentralized hash — untampered." });
+        } else {
+          toast({ title: "Integrity check failed", description: "File may have been modified after archival.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Pinned to decentralized storage", description: `CID: ${result.ipfs_hash}` });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Verification failed";
+      toast({ title: "Verification error", description: msg, variant: "destructive" });
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  const handlePin = async (datasetId: number) => {
+    setPinningId(datasetId);
+    try {
+      const result = await api.pinDataset(datasetId);
+      queryClient.invalidateQueries({ queryKey: ["/projects", projectId, "datasets"] });
+      toast({ title: "Pinned to decentralized storage", description: `CID: ${result.ipfs_hash}` });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Pin failed";
+      toast({ title: "Pin error", description: msg, variant: "destructive" });
+    } finally {
+      setPinningId(null);
+    }
+  };
 
   const handleFileSelected = useCallback((file: File) => {
     const ext = "." + (file.name.split(".").pop() ?? "").toLowerCase();
@@ -157,6 +199,10 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
           <p className="text-xs text-muted-foreground/70 mt-2">
             Supported: {ALLOWED_EXTS.join(", ")} — max 50 MB
           </p>
+          <div className="flex items-center justify-center gap-1.5 mt-2">
+            <Link2 className="w-3 h-3 text-teal-600" />
+            <span className="text-xs text-teal-600 font-medium">Files are automatically archived to decentralized storage</span>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
@@ -233,6 +279,11 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
                   />
                 </div>
 
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 border border-teal-200">
+                  <Link2 className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                  <p className="text-xs text-teal-700">A tamper-resistant CID hash will be computed and stored automatically.</p>
+                </div>
+
                 {/* Upload progress */}
                 {isUploading && uploadProgress !== null && (
                   <div className="space-y-1">
@@ -293,11 +344,26 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
                 {fileTypeIcon(d.file_name)}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="font-medium text-foreground text-sm">{d.name}</h4>
                   {d.has_file && (
                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 font-medium">
                       ✓ File stored
+                    </span>
+                  )}
+                  {d.ipfs_hash && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-teal-100 text-teal-700 font-medium">
+                      <Link2 className="w-2.5 h-2.5" /> Decentralized
+                    </span>
+                  )}
+                  {d.integrity_verified === "verified" && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium">
+                      <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                    </span>
+                  )}
+                  {d.integrity_verified === "tampered" && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 font-medium">
+                      <ShieldAlert className="w-2.5 h-2.5" /> Tampered
                     </span>
                   )}
                 </div>
@@ -316,8 +382,58 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
                   )}
                   <span>{formatDate(d.created_at)}</span>
                 </div>
+                {/* IPFS hash row */}
+                {d.ipfs_hash && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">CID</span>
+                    <span className="font-mono text-[11px] text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded select-all" title={d.ipfs_hash}>
+                      {shortenHash(d.ipfs_hash)}
+                    </span>
+                    <a
+                      href={`https://ipfs.io/ipfs/${d.ipfs_hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-[10px] text-teal-600 hover:underline"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <ExternalLink className="w-2.5 h-2.5" /> View on IPFS
+                    </a>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
+                {d.has_file && d.ipfs_hash && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
+                    onClick={() => handleVerify(d)}
+                    disabled={verifyingId === d.id}
+                    title="Verify file integrity against stored CID"
+                  >
+                    {verifyingId === d.id ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <><Shield className="w-3 h-3 mr-1" /> Verify</>
+                    )}
+                  </Button>
+                )}
+                {d.has_file && !d.ipfs_hash && canWrite && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs text-teal-700 border-teal-200 hover:bg-teal-50"
+                    onClick={() => handlePin(d.id)}
+                    disabled={pinningId === d.id}
+                    title="Pin to decentralized storage"
+                  >
+                    {pinningId === d.id ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <><Link2 className="w-3 h-3 mr-1" /> Pin</>
+                    )}
+                  </Button>
+                )}
                 {d.has_file && (
                   <Button
                     variant="outline"
