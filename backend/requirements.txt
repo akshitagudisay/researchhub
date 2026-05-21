@@ -4,3 +4,4 @@ sqlalchemy==2.0.36
 email-validator==2.2.0
 python-jose[cryptography]==3.3.0
 bcrypt==4.2.1
+httpx==0.28.1
