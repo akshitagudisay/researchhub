@@ -225,6 +225,18 @@ class ExperimentManuscriptLink(Base):
 
 # ── Sprint 3: Manuscript Versions ─────────────────────────────────────────────
 
+class UserPresence(Base):
+    __tablename__ = "user_presence"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    last_seen = Column(DateTime, default=datetime.utcnow, nullable=False)
+    current_tab = Column(String, nullable=True)
+
+    user = relationship("User")
+    project = relationship("Project")
+
+
 class ManuscriptVersion(Base):
     __tablename__ = "manuscript_versions"
 

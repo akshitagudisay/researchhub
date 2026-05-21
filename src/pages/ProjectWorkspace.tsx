@@ -10,6 +10,7 @@ import CollaboratorsPanel from "@/components/CollaboratorsPanel";
 import ChatSidebar from "@/components/ChatSidebar";
 import ContributionsDashboard from "@/components/ContributionsDashboard";
 import ReproducibilityGraph from "@/components/ReproducibilityGraph";
+import PresenceAvatars from "@/components/PresenceAvatars";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -134,6 +135,12 @@ export default function ProjectWorkspace() {
           <h3 className="font-medium text-foreground text-sm flex-1 truncate">
             {project?.title ?? "Loading…"}
           </h3>
+
+          {/* Live presence avatars */}
+          {!!projectId && (
+            <PresenceAvatars projectId={projectId} activeTab={activeTab} />
+          )}
+
           {role === "viewer" && (
             <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2.5 py-1 rounded-full flex-shrink-0">
               <Eye className="w-3 h-3" /> Viewer — read-only

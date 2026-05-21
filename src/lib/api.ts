@@ -551,6 +551,21 @@ export const api = {
   deleteExperimentLink: (linkId: number, projectId: number) =>
     request<void>(`/reproducibility/link-experiment/${linkId}?project_id=${projectId}`, { method: "DELETE" }),
 
+  // ── Presence ──────────────────────────────────────────────────────────────────
+  heartbeat: (projectId: number, currentTab?: string) =>
+    request<{ status: string }>("/presence/heartbeat", {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId, current_tab: currentTab ?? null }),
+    }),
+  getPresence: (projectId: number) =>
+    request<{
+      user_id: number;
+      email: string;
+      current_tab: string | null;
+      last_seen: string;
+      is_me: boolean;
+    }[]>(`/presence/project/${projectId}`),
+
   // ── Search ────────────────────────────────────────────────────────────────────
   searchProjects: (params: { q?: string; role?: string; created_by?: string; collaborator?: string }) => {
     const qs = new URLSearchParams();
