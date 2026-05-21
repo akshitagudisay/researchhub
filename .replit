@@ -71,3 +71,4 @@ externalPort = 8000
 [userenv]
 
 [userenv.shared]
+JWT_SECRET_KEY = "fd54b993b1433bc392bb792d9723b036397cc6da29b42cb2866a5f157316d46d"
