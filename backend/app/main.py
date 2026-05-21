@@ -6,7 +6,7 @@ from typing import List
 import json
 from datetime import datetime
 
-from .database import engine, Base, get_db
+from .database import engine, Base, get_db, run_migrations
 from . import models  # noqa: F401
 from .auth import hash_password, verify_password, create_access_token, get_current_user
 from .schemas import (
@@ -26,8 +26,10 @@ from .routes.contributions import router as contributions_router
 from .routes.reviews import router as reviews_router
 from .routes.reproducibility import router as reproducibility_router
 from .routes.ai_writing import router as ai_writing_router
+from .routes.file_manager import router as file_manager_router
 
 Base.metadata.create_all(bind=engine)
+run_migrations()
 
 app = FastAPI()
 app.include_router(invite_router)
@@ -38,6 +40,7 @@ app.include_router(contributions_router)
 app.include_router(reviews_router)
 app.include_router(reproducibility_router)
 app.include_router(ai_writing_router)
+app.include_router(file_manager_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -380,19 +383,37 @@ def get_manuscript_history(
 
 # ── Datasets ──────────────────────────────────────────────────────────────────
 
-@app.get("/projects/{project_id}/datasets", response_model=List[DatasetRead])
+@app.get("/projects/{project_id}/datasets")
 def list_datasets(
     project_id: int,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     _get_project_or_404(project_id, current_user, db)
-    return (
+    datasets = (
         db.query(models.Dataset)
         .filter(models.Dataset.project_id == project_id)
         .order_by(models.Dataset.created_at.desc())
         .all()
     )
+    result = []
+    for d in datasets:
+        uploader = db.query(models.User).filter(models.User.id == d.uploaded_by).first() if d.uploaded_by else None
+        result.append({
+            "id": d.id,
+            "name": d.name,
+            "description": d.description,
+            "file_name": d.file_name,
+            "file_size": d.file_size,
+            "uploaded_by": d.uploaded_by,
+            "uploaded_by_email": uploader.email if uploader else None,
+            "stored_filename": d.stored_filename,
+            "file_path": d.file_path,
+            "has_file": bool(d.file_path),
+            "project_id": d.project_id,
+            "created_at": d.created_at.isoformat(),
+        })
+    return result
 
 
 @app.post("/projects/{project_id}/datasets", response_model=DatasetRead, status_code=201)
@@ -467,25 +488,49 @@ def delete_dataset(
     ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
+    file_path = dataset.file_path
     db.delete(dataset)
     db.commit()
+    if file_path:
+        try:
+            import os
+            os.remove(file_path)
+        except OSError:
+            pass
 
 
 # ── Experiments ───────────────────────────────────────────────────────────────
 
-@app.get("/projects/{project_id}/experiments", response_model=List[ExperimentRead])
+@app.get("/projects/{project_id}/experiments")
 def list_experiments(
     project_id: int,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     _get_project_or_404(project_id, current_user, db)
-    return (
+    experiments = (
         db.query(models.Experiment)
         .filter(models.Experiment.project_id == project_id)
         .order_by(models.Experiment.created_at.desc())
         .all()
     )
+    result = []
+    for e in experiments:
+        result.append({
+            "id": e.id,
+            "name": e.name,
+            "description": e.description,
+            "notes": e.notes,
+            "attachments": e.attachments,
+            "attachment_path": e.attachment_path,
+            "attachment_filename": e.attachment_filename,
+            "attachment_stored_name": e.attachment_stored_name,
+            "linked_dataset_ids": e.linked_dataset_ids,
+            "has_attachment": bool(e.attachment_path),
+            "project_id": e.project_id,
+            "created_at": e.created_at.isoformat(),
+        })
+    return result
 
 
 @app.post("/projects/{project_id}/experiments", response_model=ExperimentRead, status_code=201)
@@ -560,8 +605,15 @@ def delete_experiment(
     ).first()
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
+    attachment_path = experiment.attachment_path
     db.delete(experiment)
     db.commit()
+    if attachment_path:
+        try:
+            import os
+            os.remove(attachment_path)
+        except OSError:
+            pass
 
 
 # ── Collaborators ─────────────────────────────────────────────────────────────

@@ -1,0 +1,417 @@
+Fix and fully implement real dataset upload/download persistence and experiment attachment management in the ResearchHub platform.
+
+Current issue:
+
+* "Add Dataset" and "Add Experiment" modals are only UI forms
+* users cannot actually upload files from their computer
+* datasets are not stored permanently
+* files disappear after refresh/logout
+* collaborators cannot download datasets later
+* experiment attachments are only text placeholders
+
+IMPORTANT:
+This task is to convert the Dataset + Experiment modules from mock UI into REAL working file management systems.
+
+Implementation must be:
+
+* fully end-to-end
+* persistent
+* stable
+* collaborative
+* production-like
+* lightweight enough for Replit
+
+Do NOT redesign existing UI.
+Enhance current modals and connect them to real backend storage.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — REAL DATASET FILE UPLOAD SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement actual dataset uploading from user computer.
+
+Users should be able to:
+
+* upload dataset files
+* store datasets permanently
+* view uploaded datasets later
+* download datasets anytime
+* share datasets with collaborators
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND STORAGE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside FastAPI backend:
+
+Create persistent uploads directory:
+
+backend/uploads/datasets/
+
+Files must remain saved:
+
+* after refresh
+* after logout/login
+* after collaborator access
+* after browser restart
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SUPPORTED FILE TYPES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Allow:
+
+* .csv
+* .xlsx
+* .json
+* .txt
+* .zip
+
+Validate file extensions safely.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATASET MODEL UPDATE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Update Dataset model:
+
+Fields:
+
+* id
+* project_id
+* uploaded_by
+* name
+* description
+* original_filename
+* stored_filename
+* file_path
+* file_size
+* uploaded_at
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FILE STORAGE LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━
+
+When user uploads file:
+
+1. generate unique filename
+2. save file in uploads/datasets
+3. store metadata in database
+4. return dataset object
+
+Prevent:
+
+* filename collisions
+* unsafe file paths
+* oversized uploads
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND API ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create robust APIs:
+
+POST /datasets/upload
+
+* multipart file upload
+
+GET /datasets/project/{project_id}
+
+* fetch project datasets
+
+GET /datasets/download/{dataset_id}
+
+* download dataset file
+
+DELETE /datasets/{dataset_id}
+
+* delete dataset + file
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DOWNLOAD FUNCTIONALITY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Users and collaborators should:
+
+* click Download
+* retrieve original uploaded dataset
+* preserve original filename
+
+Use:
+FileResponse in FastAPI.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PERMISSION RULES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Owner:
+
+* upload/delete/download
+
+Editor:
+
+* upload/download
+
+Viewer:
+
+* download only
+
+Unauthorized users:
+
+* blocked from access
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — FRONTEND DATASET FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix current Add Dataset modal.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REAL FILE PICKER
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace fake filename input with:
+actual file upload selector.
+
+Use: <input type="file" />
+
+Allow drag-and-drop if easy.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+UPLOAD FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+User:
+
+* selects dataset file
+* enters metadata
+* clicks Add Dataset
+
+Frontend should:
+
+* send multipart/form-data request
+* include JWT token
+* show upload progress
+* handle failures gracefully
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATASET CARDS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+After upload:
+display dataset cards containing:
+
+* dataset name
+* description
+* uploaded by
+* upload timestamp
+* file size
+* file type
+
+Buttons:
+
+* Download
+* Delete
+* View Metadata
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PERSISTENCE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT:
+After:
+
+* logout/login
+* refresh
+* collaborator login
+
+Datasets must still appear correctly.
+
+Frontend must fetch datasets from backend on load.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+UPLOAD STATES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show:
+
+* Uploading...
+* Upload Complete
+* Upload Failed
+
+Add:
+
+* progress bar
+* retry support
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — EXPERIMENT ATTACHMENT SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current issue:
+Experiment attachments are just text fields.
+
+Implement REAL experiment attachment uploads.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND STORAGE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create:
+backend/uploads/experiments/
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPERIMENT MODEL UPDATE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Update Experiment model:
+
+Fields:
+
+* id
+* project_id
+* title
+* description
+* notes
+* attachment_path
+* attachment_filename
+* created_at
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SUPPORTED ATTACHMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Allow:
+
+* .txt
+* .csv
+* .json
+* .png
+* .jpg
+* .pdf
+* .zip
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPERIMENT ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /experiments/upload
+GET /experiments/project/{project_id}
+GET /experiments/download/{experiment_id}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace:
+"comma-separated filenames"
+
+with:
+real attachment uploader.
+
+Users should:
+
+* upload logs/results/images
+* download experiment attachments later
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — DATASET + EXPERIMENT LINKING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Connect uploaded datasets with experiments.
+
+Allow:
+
+* selecting datasets used in experiment
+* showing dataset dependency
+
+Example:
+Dataset A
+→ used in Experiment 3
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND LINKING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create ExperimentDatasetLink model:
+
+* experiment_id
+* dataset_id
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND LINKING UI
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside experiment modal:
+Add:
+"Select Related Dataset"
+
+Use dropdown/multi-select.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 5 — STABILITY & FAILURE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VERY IMPORTANT:
+
+Prevent:
+
+* failed uploads
+* disappearing files
+* broken download links
+* invalid paths
+* token issues
+* oversized upload crashes
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ERROR HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Frontend:
+
+* show upload errors
+* show retry button
+* prevent empty uploads
+
+Backend:
+
+* validate file exists
+* validate permissions
+* catch filesystem errors
+* rollback database on failure
+
+━━━━━━━━━━━━━━━━━━━━━━━
+LOADING STATES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Add:
+
+* upload spinner
+* skeleton loading
+* download loading state
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED FINAL FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+User uploads dataset
+→ file stored permanently on backend
+→ dataset metadata saved in database
+→ collaborators can see dataset
+→ collaborators can download later
+→ experiment links dataset
+→ attachments downloadable anytime
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT break:
+
+* auth
+* collaboration
+* realtime systems
+* manuscript persistence
+* contributor analytics
+
+Keep architecture modular and production-like.

@@ -30,6 +30,11 @@ export interface ApiDataset {
   description: string | null;
   file_name: string | null;
   file_size: string | null;
+  uploaded_by: number | null;
+  uploaded_by_email: string | null;
+  stored_filename: string | null;
+  file_path: string | null;
+  has_file: boolean;
   project_id: number;
   created_at: string;
 }
@@ -79,6 +84,11 @@ export interface ApiExperiment {
   description: string | null;
   notes: string | null;
   attachments: string | null;
+  attachment_path: string | null;
+  attachment_filename: string | null;
+  attachment_stored_name: string | null;
+  linked_dataset_ids: string | null;
+  has_attachment: boolean;
   project_id: number;
   created_at: string;
 }
@@ -293,6 +303,43 @@ export const api = {
     request<ApiDataset>(`/projects/${projectId}/datasets/${datasetId}`),
   createDataset: (projectId: number, body: { name: string; description?: string; file_name?: string; file_size?: string }) =>
     request<ApiDataset>(`/projects/${projectId}/datasets`, { method: "POST", body: JSON.stringify(body) }),
+  uploadDataset: async (projectId: number, file: File, name: string, description: string): Promise<ApiDataset> => {
+    const token = localStorage.getItem("token");
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("name", name);
+    fd.append("description", description);
+    const res = await fetch(`${BASE}/projects/${projectId}/datasets/upload`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+      throw new Error(err.detail ?? "Upload failed");
+    }
+    return res.json();
+  },
+  downloadDataset: (datasetId: number) => {
+    const token = localStorage.getItem("token");
+    const url = `${BASE}/datasets/${datasetId}/download`;
+    const a = document.createElement("a");
+    a.href = url + (token ? `?token=${token}` : "");
+    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => {
+        const cd = r.headers.get("content-disposition") || "";
+        const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        const filename = match ? match[1].replace(/['"]/g, "") : "download";
+        return r.blob().then(blob => ({ blob, filename }));
+      })
+      .then(({ blob, filename }) => {
+        const burl = URL.createObjectURL(blob);
+        a.href = burl;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(burl);
+      });
+  },
   updateDataset: (projectId: number, datasetId: number, body: { name?: string; description?: string; file_name?: string; file_size?: string }) =>
     request<ApiDataset>(`/projects/${projectId}/datasets/${datasetId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDataset: (projectId: number, datasetId: number) =>
@@ -305,6 +352,48 @@ export const api = {
     request<ApiExperiment>(`/projects/${projectId}/experiments/${experimentId}`),
   createExperiment: (projectId: number, body: { name: string; description?: string; notes?: string; attachments?: string }) =>
     request<ApiExperiment>(`/projects/${projectId}/experiments`, { method: "POST", body: JSON.stringify(body) }),
+  uploadExperiment: async (
+    projectId: number,
+    fields: { name: string; description?: string; notes?: string; datasetIds?: number[] },
+    file?: File | null,
+  ): Promise<ApiExperiment> => {
+    const token = localStorage.getItem("token");
+    const fd = new FormData();
+    fd.append("name", fields.name);
+    fd.append("description", fields.description ?? "");
+    fd.append("notes", fields.notes ?? "");
+    fd.append("dataset_ids", (fields.datasetIds ?? []).join(","));
+    if (file) fd.append("file", file);
+    const res = await fetch(`${BASE}/projects/${projectId}/experiments/upload`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+      throw new Error(err.detail ?? "Upload failed");
+    }
+    return res.json();
+  },
+  downloadExperiment: (experimentId: number) => {
+    const token = localStorage.getItem("token");
+    const url = `${BASE}/experiments/${experimentId}/download`;
+    fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => {
+        const cd = r.headers.get("content-disposition") || "";
+        const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        const filename = match ? match[1].replace(/['"]/g, "") : "attachment";
+        return r.blob().then(blob => ({ blob, filename }));
+      })
+      .then(({ blob, filename }) => {
+        const burl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = burl;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(burl);
+      });
+  },
   updateExperiment: (projectId: number, experimentId: number, body: { name?: string; description?: string; notes?: string; attachments?: string }) =>
     request<ApiExperiment>(`/projects/${projectId}/experiments/${experimentId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteExperiment: (projectId: number, experimentId: number) =>
