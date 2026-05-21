@@ -10,11 +10,13 @@ import {
   Save, History, Eye, Wifi, WifiOff,
   CheckCircle2, Clock, AlertTriangle, BookOpen, Users,
   RotateCcw, Loader2, X, AlertCircle, UserCheck, Wand2,
+  Download, FileDown, ChevronDown, MessageCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CitationManager from "./CitationManager";
 import ReviewPanel from "./ReviewPanel";
 import AIWritingAssistant from "./AIWritingAssistant";
+import ContextualComments from "./ContextualComments";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -254,6 +256,9 @@ export default function ManuscriptEditor({ projectId, canWrite = true, userRole 
   const [showCitations, setShowCitations] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showAI, setShowAI] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState<string | null>(null);
 
   // AI: track selected text for AI writing assistant
   const [selectedText, setSelectedText] = useState("");
@@ -377,11 +382,12 @@ export default function ManuscriptEditor({ projectId, canWrite = true, userRole 
   }, [activeSection, collab]);
 
   // ── Panel toggle helpers — only one panel open at a time ──────────────────
-  const openPanel = useCallback((panel: "history" | "citations" | "review" | "ai") => {
+  const openPanel = useCallback((panel: "history" | "citations" | "review" | "ai" | "comments") => {
     setShowHistory(panel === "history");
     setShowCitations(panel === "citations");
     setShowReview(panel === "review");
     setShowAI(panel === "ai");
+    setShowComments(panel === "comments");
   }, []);
 
   const closeAllPanels = useCallback(() => {
@@ -389,7 +395,27 @@ export default function ManuscriptEditor({ projectId, canWrite = true, userRole 
     setShowCitations(false);
     setShowReview(false);
     setShowAI(false);
+    setShowComments(false);
+    setShowExportMenu(false);
   }, []);
+
+  const handleExport = useCallback(async (format: "pdf" | "docx", style: "apa" | "ieee") => {
+    setShowExportMenu(false);
+    setIsExporting(`${format}-${style}`);
+    try {
+      if (format === "pdf") {
+        await api.exportPdf(projectId, style);
+      } else {
+        await api.exportDocx(projectId, style);
+      }
+      toast({ title: "Export ready", description: `${format.toUpperCase()} (${style.toUpperCase()}) downloaded.` });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Export failed";
+      toast({ title: "Export failed", description: msg, variant: "destructive" });
+    } finally {
+      setIsExporting(null);
+    }
+  }, [projectId, toast]);
 
   // ── Apply AI suggestion to active section ─────────────────────────────────
   const handleApplyAISuggestion = useCallback((newText: string) => {
@@ -644,6 +670,15 @@ export default function ManuscriptEditor({ projectId, canWrite = true, userRole 
           </Button>
 
           <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => showComments ? closeAllPanels() : openPanel("comments")}
+            className={showComments ? "bg-primary/10 text-primary" : ""}
+          >
+            <MessageCircle className="w-3.5 h-3.5 mr-1.5" /> Comments
+          </Button>
+
+          <Button
             variant="outline"
             size="sm"
             onClick={() => showHistory ? closeAllPanels() : openPanel("history")}
@@ -651,6 +686,41 @@ export default function ManuscriptEditor({ projectId, canWrite = true, userRole 
           >
             <History className="w-3.5 h-3.5 mr-1.5" /> History
           </Button>
+
+          {/* Export dropdown */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowExportMenu(m => !m)}
+              disabled={!!isExporting}
+              className="gap-1.5"
+            >
+              {isExporting
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Exporting…</>
+                : <><FileDown className="w-3.5 h-3.5" /> Export <ChevronDown className="w-3 h-3 opacity-60" /></>
+              }
+            </Button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-card border rounded-xl shadow-lg w-44 py-1 text-xs">
+                <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">PDF</p>
+                <button onClick={() => handleExport("pdf", "apa")} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2">
+                  <Download className="w-3.5 h-3.5 text-rose-500" /> APA style
+                </button>
+                <button onClick={() => handleExport("pdf", "ieee")} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2">
+                  <Download className="w-3.5 h-3.5 text-rose-500" /> IEEE style
+                </button>
+                <div className="border-t my-1" />
+                <p className="px-3 py-1.5 text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">DOCX</p>
+                <button onClick={() => handleExport("docx", "apa")} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2">
+                  <Download className="w-3.5 h-3.5 text-blue-500" /> APA style
+                </button>
+                <button onClick={() => handleExport("docx", "ieee")} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2">
+                  <Download className="w-3.5 h-3.5 text-blue-500" /> IEEE style
+                </button>
+              </div>
+            )}
+          </div>
 
           {canWrite ? (
             <Button
@@ -764,6 +834,18 @@ export default function ManuscriptEditor({ projectId, canWrite = true, userRole 
           selectedText={selectedText}
           activeSection={activeSection}
           onApply={handleApplyAISuggestion}
+          onClose={closeAllPanels}
+        />
+      )}
+
+      {/* Contextual Comments panel */}
+      {showComments && (
+        <ContextualComments
+          projectId={projectId}
+          targetType="section"
+          targetId={activeSection}
+          targetLabel={`${activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} section`}
+          canWrite={canWrite ?? true}
           onClose={closeAllPanels}
         />
       )}

@@ -204,6 +204,22 @@ export interface ApiReproducibilityGraph {
   experiments: { id: number; name: string; description: string | null; created_at: string }[];
   dataset_experiment_links: { id: number; dataset_id: number; experiment_id: number; relationship_note: string | null }[];
   experiment_manuscript_links: { id: number; experiment_id: number; manuscript_section: string; figure_reference: string | null; description: string | null }[];
+  authors: { id: string; email: string; role: string }[];
+  citations: { id: number; title: string; authors: string; journal: string | null; year: number | null; doi: string | null }[];
+}
+
+export interface ApiComment {
+  id: number;
+  project_id: number;
+  target_type: string;
+  target_id: string;
+  parent_id: number | null;
+  author_id: number;
+  author_email: string;
+  content: string;
+  resolved: boolean;
+  created_at: string;
+  replies: ApiComment[];
 }
 
 export interface LinkDatasetPayload {
@@ -595,6 +611,61 @@ export const api = {
     request<ApiIpfsResult>(`/ipfs/experiments/${experimentId}/pin`, { method: "POST" }),
   verifyExperiment: (experimentId: number) =>
     request<ApiIpfsVerify>(`/ipfs/experiments/${experimentId}/verify`),
+
+  // ── Comments ──────────────────────────────────────────────────────────────────
+  getComments: (projectId: number, targetType?: string, targetId?: string) => {
+    const qs = new URLSearchParams();
+    if (targetType) qs.set("target_type", targetType);
+    if (targetId) qs.set("target_id", targetId);
+    const query = qs.toString() ? `?${qs}` : "";
+    return request<ApiComment[]>(`/comments/project/${projectId}${query}`);
+  },
+  createComment: (projectId: number, body: { target_type: string; target_id: string; content: string; parent_id?: number }) =>
+    request<ApiComment>(`/comments/project/${projectId}`, { method: "POST", body: JSON.stringify({ project_id: projectId, ...body }) }),
+  resolveComment: (commentId: number, resolved: boolean) =>
+    request<{ id: number; resolved: boolean }>(`/comments/${commentId}/resolve`, { method: "PATCH", body: JSON.stringify({ resolved }) }),
+  deleteComment: (commentId: number) =>
+    request<void>(`/comments/${commentId}`, { method: "DELETE" }),
+
+  // ── Export ────────────────────────────────────────────────────────────────────
+  exportPdf: async (projectId: number, style: "apa" | "ieee" = "apa"): Promise<void> => {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${BASE}/export/${projectId}/pdf?style=${style}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Export failed" }));
+      throw new Error(err.detail ?? "Export failed");
+    }
+    const cd = res.headers.get("content-disposition") || "";
+    const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    const filename = match ? match[1].replace(/['"]/g, "") : `manuscript_${style}.pdf`;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  },
+  exportDocx: async (projectId: number, style: "apa" | "ieee" = "apa"): Promise<void> => {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${BASE}/export/${projectId}/docx?style=${style}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Export failed" }));
+      throw new Error(err.detail ?? "Export failed");
+    }
+    const cd = res.headers.get("content-disposition") || "";
+    const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    const filename = match ? match[1].replace(/['"]/g, "") : `manuscript_${style}.docx`;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  },
 
   // ── Search ────────────────────────────────────────────────────────────────────
   searchProjects: (params: { q?: string; role?: string; created_by?: string; collaborator?: string }) => {

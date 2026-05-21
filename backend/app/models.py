@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -254,3 +254,23 @@ class ManuscriptVersion(Base):
 
     manuscript = relationship("Manuscript")
     saver = relationship("User")
+
+
+# ── Contextual Comments ────────────────────────────────────────────────────────
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    target_type = Column(String, nullable=False)
+    target_id = Column(String, nullable=False)
+    parent_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    resolved = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    project = relationship("Project")
+    author = relationship("User")
+    replies = relationship("Comment", foreign_keys=[parent_id])

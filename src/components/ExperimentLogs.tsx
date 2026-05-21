@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Paperclip, Clock, FlaskConical, Eye, Download, Trash2, RefreshCw, Database, Upload, Shield, ShieldCheck, ShieldAlert, Link2, ExternalLink } from "lucide-react";
+import { Plus, Paperclip, Clock, FlaskConical, Eye, Download, Trash2, RefreshCw, Database, Upload, Shield, ShieldCheck, ShieldAlert, Link2, ExternalLink, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ContextualComments from "./ContextualComments";
 
 const ALLOWED_EXTS = [".txt", ".csv", ".json", ".png", ".jpg", ".jpeg", ".pdf", ".zip"];
 
@@ -41,6 +42,7 @@ export default function ExperimentLogs({ projectId, canWrite = true }: Props) {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", notes: "" });
+  const [commentExperimentId, setCommentExperimentId] = useState<number | null>(null);
 
   const { data: experiments, isLoading } = useQuery<ApiExperiment[]>({
     queryKey: ["/projects", projectId, "experiments"],
@@ -335,6 +337,15 @@ export default function ExperimentLogs({ projectId, canWrite = true }: Props) {
                       <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
                         <Clock className="w-3 h-3" /> {formatDate(exp.created_at)}
                       </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-7 w-7 ml-1 ${commentExperimentId === exp.id ? "text-primary bg-primary/10" : "text-muted-foreground"}`}
+                        onClick={() => setCommentExperimentId(commentExperimentId === exp.id ? null : exp.id)}
+                        title="Comments"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </Button>
                       {canWrite && (
                         <Button
                           variant="ghost"
@@ -434,6 +445,21 @@ export default function ExperimentLogs({ projectId, canWrite = true }: Props) {
                           <Paperclip className="w-3 h-3" /> {a}
                         </span>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Inline comments */}
+                  {commentExperimentId === exp.id && (
+                    <div className="mt-3 pt-3 border-t">
+                      <ContextualComments
+                        projectId={projectId}
+                        targetType="experiment"
+                        targetId={String(exp.id)}
+                        targetLabel={exp.name}
+                        canWrite={canWrite}
+                        onClose={() => setCommentExperimentId(null)}
+                        inline
+                      />
                     </div>
                   )}
                 </div>

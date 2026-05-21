@@ -30,6 +30,8 @@ from .routes.file_manager import router as file_manager_router
 from .routes.search import router as search_router
 from .routes.presence import router as presence_router
 from .routes.ipfs import router as ipfs_router
+from .routes.comments import router as comments_router
+from .routes.export import router as export_router
 
 Base.metadata.create_all(bind=engine)
 run_migrations()
@@ -47,6 +49,8 @@ app.include_router(file_manager_router)
 app.include_router(search_router)
 app.include_router(presence_router)
 app.include_router(ipfs_router)
+app.include_router(comments_router)
+app.include_router(export_router)
 
 app.add_middleware(
     CORSMiddleware,

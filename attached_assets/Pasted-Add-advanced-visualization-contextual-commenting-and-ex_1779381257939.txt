@@ -1,0 +1,204 @@
+Add advanced visualization, contextual commenting, and export support to the ResearchHub platform.
+
+IMPORTANT:
+
+* improve existing systems if already partially implemented
+* avoid duplicate graph/comment/export architectures
+* keep implementation stable and lightweight for Replit
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — KNOWLEDGE GRAPH VISUALIZATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create interactive research relationship graph visualization.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VISUALIZE RELATIONSHIPS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Graph should connect:
+
+* authors
+* collaborators
+* datasets
+* experiments
+* citations
+* manuscript topics
+
+Example:
+Dataset A
+→ used in Experiment 3
+→ referenced in Results section
+→ cited by Author X
+
+━━━━━━━━━━━━━━━━━━━━━━━
+TECH STACK
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Use:
+
+* Cytoscape.js preferred
+  OR
+* D3.js
+
+━━━━━━━━━━━━━━━━━━━━━━━
+GRAPH FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Support:
+
+* zoom/pan
+* clickable nodes
+* relationship highlighting
+* node hover tooltips
+* filtering by relationship type
+
+━━━━━━━━━━━━━━━━━━━━━━━
+NODE TYPES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Differentiate:
+
+* authors
+* datasets
+* experiments
+* citations
+* manuscript sections
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND GRAPH API
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create:
+GET /graph/project/{project_id}
+
+Return:
+nodes + edges JSON structure
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — CONTEXTUAL COMMENT SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Improve existing comment system into contextual academic comments.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+COMMENT TARGETS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Allow comments on:
+
+* manuscript sections
+* datasets
+* experiments
+
+━━━━━━━━━━━━━━━━━━━━━━━
+INLINE COMMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Frontend:
+
+* inline comment indicators
+* highlighted commented sections
+* threaded replies
+
+━━━━━━━━━━━━━━━━━━━━━━━
+THREADING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Support:
+
+* replies
+* nested discussions
+* timestamps
+* collaborator attribution
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PERMISSIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Owner/editor:
+
+* create comments
+* reply
+* resolve threads
+
+Viewer:
+
+* read comments only
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — EXPORT & SUBMISSION SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Enable manuscript export in publication-ready formats.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPORT FORMATS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Generate:
+
+* PDF
+* DOCX
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPORT CONTENT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Include:
+
+* manuscript sections
+* citations
+* bibliography
+* author metadata
+* formatting
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FORMATTING SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Support:
+
+* APA
+* IEEE
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND EXPORT UI
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Add:
+
+* export buttons
+* preview modal
+* download generated file
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND EXPORT APIs
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create:
+POST /export/pdf
+POST /export/docx
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STABILITY REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Prevent:
+
+* export crashes
+* missing citation formatting
+* broken file generation
+* graph rendering failures
+* comment duplication
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FINAL REQUIREMENT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+All systems must:
+
+* persist after refresh
+* support collaborators
+* work with existing auth/permissions
+* not break current realtime features

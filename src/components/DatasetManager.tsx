@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileText, Plus, HardDrive, Trash2, Eye, Download, User, RefreshCw, Shield, ShieldCheck, ShieldAlert, Link2, ExternalLink } from "lucide-react";
+import { Upload, FileText, Plus, HardDrive, Trash2, Eye, Download, User, RefreshCw, Shield, ShieldCheck, ShieldAlert, Link2, ExternalLink, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ContextualComments from "./ContextualComments";
 
 const ALLOWED_EXTS = [".csv", ".xlsx", ".json", ".txt", ".zip"];
 
@@ -45,6 +46,7 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [pinningId, setPinningId] = useState<number | null>(null);
+  const [commentDatasetId, setCommentDatasetId] = useState<number | null>(null);
 
   const { data: datasets, isLoading } = useQuery<ApiDataset[]>({
     queryKey: ["/projects", projectId, "datasets"],
@@ -339,7 +341,8 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
       ) : (
         <div className="space-y-3">
           {datasets?.map(d => (
-            <div key={d.id} className="flex items-start gap-4 p-4 rounded-lg border bg-card" data-testid={`card-dataset-${d.id}`}>
+            <div key={d.id} className="p-4 rounded-lg border bg-card" data-testid={`card-dataset-${d.id}`}>
+              <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 text-lg">
                 {fileTypeIcon(d.file_name)}
               </div>
@@ -402,6 +405,15 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
                 )}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${commentDatasetId === d.id ? "text-primary bg-primary/10" : "text-muted-foreground"}`}
+                  onClick={() => setCommentDatasetId(commentDatasetId === d.id ? null : d.id)}
+                  title="Comments"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </Button>
                 {d.has_file && d.ipfs_hash && (
                   <Button
                     variant="outline"
@@ -459,6 +471,20 @@ export default function DatasetManager({ projectId, canWrite = true }: Props) {
                   </Button>
                 )}
               </div>
+              </div>
+              {commentDatasetId === d.id && (
+                <div className="mt-3 pt-3 border-t">
+                  <ContextualComments
+                    projectId={projectId}
+                    targetType="dataset"
+                    targetId={String(d.id)}
+                    targetLabel={d.name}
+                    canWrite={canWrite}
+                    onClose={() => setCommentDatasetId(null)}
+                    inline
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

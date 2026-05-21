@@ -211,7 +211,7 @@ def get_reproducibility_graph(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _assert_project_access(project_id, current_user, db)
+    project = _assert_project_access(project_id, current_user, db)
 
     datasets = db.query(models.Dataset).filter(models.Dataset.project_id == project_id).all()
     experiments = db.query(models.Experiment).filter(models.Experiment.project_id == project_id).all()
@@ -230,6 +230,18 @@ def get_reproducibility_graph(
         .filter(models.ExperimentManuscriptLink.experiment_id.in_(exp_ids))
         .all()
     ) if exp_ids else []
+
+    # Authors: owner + collaborators
+    owner = db.query(models.User).filter(models.User.id == project.owner_id).first()
+    collabs = db.query(models.Collaborator).filter(models.Collaborator.project_id == project_id).all()
+    authors = []
+    if owner:
+        authors.append({"id": f"author-{owner.id}", "email": owner.email, "role": "owner"})
+    for c in collabs:
+        authors.append({"id": f"collab-{c.id}", "email": c.email, "role": c.role})
+
+    # Citations
+    citations = db.query(models.Citation).filter(models.Citation.project_id == project_id).all()
 
     return {
         "datasets": [
@@ -258,5 +270,17 @@ def get_reproducibility_graph(
                 "description": l.description,
             }
             for l in exp_links
+        ],
+        "authors": authors,
+        "citations": [
+            {
+                "id": c.id,
+                "title": c.title,
+                "authors": c.authors,
+                "journal": c.journal,
+                "year": c.year,
+                "doi": c.doi,
+            }
+            for c in citations
         ],
     }
