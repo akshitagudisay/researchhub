@@ -1,0 +1,386 @@
+Fix dataset and experiment file uploads completely in the ResearchHub platform.
+
+Current issue:
+
+* upload UI appears
+* selecting file works
+* BUT clicking upload returns:
+  "Upload Failed"
+
+As a result:
+
+* files are not stored
+* datasets disappear
+* experiments attachments disappear
+* collaborators cannot access/download files later
+
+IMPORTANT:
+This task is ONLY for fixing the real upload + persistence system end-to-end.
+
+The final system MUST support:
+
+* actual file upload
+* permanent backend storage
+* database persistence
+* reload persistence
+* logout/login persistence
+* collaborator downloads
+* stable upload APIs
+* stable file serving
+
+Do NOT redesign UI.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROOT CAUSE DEBUGGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Investigate and fix ALL causes of upload failure.
+
+Likely issues:
+
+* multipart/form-data not handled correctly
+* missing UploadFile/File imports
+* frontend sending incorrect payload
+* backend expecting JSON instead of multipart
+* uploads directory missing
+* static file serving not configured
+* token/auth issue
+* incorrect API URL
+* filesystem permission issues
+
+Fix ALL upload flow completely.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — BACKEND FILE UPLOAD FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Inside FastAPI backend:
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CREATE PERSISTENT DIRECTORIES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure these directories are auto-created on startup:
+
+backend/uploads/datasets/
+backend/uploads/experiments/
+
+Use:
+os.makedirs(..., exist_ok=True)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CORRECT FASTAPI FILE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Use proper FastAPI upload handling:
+
+from fastapi import UploadFile, File, Form
+
+DO NOT use JSON body for file uploads.
+
+Use:
+multipart/form-data
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATASET UPLOAD ROUTE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix/create:
+
+POST /datasets/upload
+
+Request:
+multipart/form-data
+
+Fields:
+
+* file
+* name
+* description
+* project_id
+
+Behavior:
+
+1. validate file exists
+2. generate unique filename
+3. save physically to uploads/datasets
+4. store metadata in database
+5. return success response
+
+━━━━━━━━━━━━━━━━━━━━━━━
+EXPERIMENT UPLOAD ROUTE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix/create:
+
+POST /experiments/upload
+
+Request:
+multipart/form-data
+
+Fields:
+
+* attachment
+* title
+* description
+* notes
+* project_id
+
+Behavior:
+
+* save file
+* save experiment metadata
+* persist attachment path
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE PERSISTENCE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure uploads are stored in database.
+
+Dataset model:
+
+* file_path
+* original_filename
+* uploaded_at
+* uploaded_by
+
+Experiment model:
+
+* attachment_path
+* attachment_filename
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DOWNLOAD ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implement proper download endpoints:
+
+GET /datasets/download/{dataset_id}
+
+GET /experiments/download/{experiment_id}
+
+Use:
+FileResponse
+
+Downloaded file should:
+
+* preserve original filename
+* work after refresh/relogin
+* work for collaborators
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STATIC FILE SERVING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Configure FastAPI static serving correctly.
+
+Mount uploads directory if needed.
+
+Ensure backend can access uploaded files permanently.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — FRONTEND FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current upload likely failing because frontend sends incorrect payload.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FIX FRONTEND REQUESTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Use:
+FormData()
+
+Example:
+const formData = new FormData();
+formData.append("file", selectedFile);
+
+DO NOT:
+JSON.stringify(formData)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CORRECT HEADERS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT:
+Do NOT manually set:
+Content-Type: application/json
+
+Browser should automatically set:
+multipart/form-data boundary
+
+Only include:
+Authorization Bearer token
+
+━━━━━━━━━━━━━━━━━━━━━━━
+UPLOAD FLOW
+━━━━━━━━━━━━━━━━━━━━━━━
+
+User:
+
+* selects file
+* enters metadata
+* clicks Upload
+
+Frontend:
+
+* sends FormData to backend
+* shows upload progress
+* handles success/failure properly
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SUCCESS HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+After successful upload:
+
+* modal closes
+* dataset/experiment appears immediately
+* data persists after refresh
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FAILURE HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Show real backend error messages:
+
+* invalid token
+* upload failed
+* unsupported file
+* backend unavailable
+
+NO silent failures.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — PERSISTENCE AFTER LOGOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT REQUIREMENT:
+
+After:
+
+* logout
+* login again
+* page refresh
+* collaborator login
+
+Uploaded datasets and experiment attachments MUST still appear.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND FETCH FIX
+━━━━━━━━━━━━━━━━━━━━━━━
+
+On project load:
+fetch datasets + experiments from backend database.
+
+Do NOT rely on local state only.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND FETCH ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure:
+GET /datasets/project/{project_id}
+
+GET /experiments/project/{project_id}
+
+Return complete metadata including:
+
+* filenames
+* download URLs
+* uploader info
+* timestamps
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — COLLABORATOR DOWNLOAD SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Collaborators should:
+
+* see uploaded datasets
+* see experiment attachments
+* download files later
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PERMISSION LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Owner:
+
+* upload/download/delete
+
+Editor:
+
+* upload/download
+
+Viewer:
+
+* download only
+
+Unauthorized users:
+
+* blocked
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 5 — DEBUGGING + LOGGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add proper backend logs for:
+
+* upload attempts
+* upload failures
+* file save paths
+* missing directories
+* download requests
+
+Add frontend console logging for:
+
+* upload request
+* API response
+* network failures
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED FINAL BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.
+
+User uploads dataset from computer
+→ upload succeeds
+→ dataset saved permanently
+
+2.
+
+User refreshes page
+→ dataset still visible
+
+3.
+
+User logs out/login
+→ dataset still visible
+
+4.
+
+Collaborator logs in
+→ collaborator sees dataset
+→ collaborator downloads file successfully
+
+5.
+
+Experiment attachments behave the same way
+
+━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Do NOT break:
+
+* auth
+* collaboration
+* manuscript system
+* realtime editing
+* contributor analytics
+* reproducibility tracking
+
+Keep implementation modular and production-like.

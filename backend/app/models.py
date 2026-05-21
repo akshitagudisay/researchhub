@@ -51,10 +51,14 @@ class Dataset(Base):
     description = Column(Text, nullable=True)
     file_name = Column(String, nullable=True)
     file_size = Column(String, nullable=True)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    stored_filename = Column(String, nullable=True)
+    file_path = Column(String, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     project = relationship("Project", back_populates="datasets")
+    uploader = relationship("User", foreign_keys=[uploaded_by])
 
 
 class Experiment(Base):
@@ -65,6 +69,10 @@ class Experiment(Base):
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     attachments = Column(Text, nullable=True)
+    attachment_path = Column(String, nullable=True)
+    attachment_filename = Column(String, nullable=True)
+    attachment_stored_name = Column(String, nullable=True)
+    linked_dataset_ids = Column(Text, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -139,7 +147,7 @@ class Citation(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     doi = Column(String, nullable=True)
     title = Column(Text, nullable=False)
-    authors = Column(Text, nullable=False, default="[]")  # JSON array string
+    authors = Column(Text, nullable=False, default="[]")
     journal = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
     citation_type = Column(String, default="article", nullable=False)
@@ -158,9 +166,9 @@ class Contribution(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    action_type = Column(String, nullable=False)  # manuscript_edit, dataset_upload, experiment_add, citation_add
+    action_type = Column(String, nullable=False)
     contribution_score = Column(Integer, default=0, nullable=False)
-    extra_data = Column(Text, nullable=True)  # JSON string for extra context
+    extra_data = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User")
