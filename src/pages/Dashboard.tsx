@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, LogOut, FlaskConical, Clock, Crown, Users } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, LogOut, FlaskConical, Clock, Crown, Users, X } from "lucide-react";
+import GlobalSearch from "@/components/GlobalSearch";
 
 function initials(email: string) {
   return email.slice(0, 2).toUpperCase();
@@ -49,6 +51,10 @@ export default function Dashboard() {
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
+  const [localSearch, setLocalSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [ownershipFilter, setOwnershipFilter] = useState("all");
+
   const { data: projects, isLoading } = useQuery<ApiProject[]>({
     queryKey: ["/projects"],
     queryFn: () => api.getProjects(),
@@ -71,8 +77,26 @@ export default function Dashboard() {
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
-  const ownedProjects = projects?.filter(p => p.owner_id === user?.id) ?? [];
-  const sharedProjects = projects?.filter(p => p.owner_id !== user?.id) ?? [];
+  const hasFilters = localSearch.trim() || roleFilter !== "all" || ownershipFilter !== "all";
+
+  const clearFilters = () => {
+    setLocalSearch("");
+    setRoleFilter("all");
+    setOwnershipFilter("all");
+  };
+
+  const filteredProjects = (projects ?? []).filter(p => {
+    const q = localSearch.trim().toLowerCase();
+    if (q && !p.title.toLowerCase().includes(q)) return false;
+    if (ownershipFilter === "me" && p.owner_id !== user?.id) return false;
+    if (ownershipFilter === "shared" && p.owner_id === user?.id) return false;
+    if (roleFilter === "owner" && p.owner_id !== user?.id) return false;
+    if (roleFilter === "collaborator" && p.owner_id === user?.id) return false;
+    return true;
+  });
+
+  const ownedProjects = filteredProjects.filter(p => p.owner_id === user?.id);
+  const sharedProjects = filteredProjects.filter(p => p.owner_id !== user?.id);
 
   const renderCard = (p: ApiProject, isOwner: boolean) => (
     <button
@@ -83,7 +107,22 @@ export default function Dashboard() {
     >
       <div className="flex items-start justify-between gap-2 mb-1">
         <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1">
-          {p.title}
+          {localSearch.trim() ? (
+            (() => {
+              const q = localSearch.trim();
+              const idx = p.title.toLowerCase().indexOf(q.toLowerCase());
+              if (idx === -1) return p.title;
+              return (
+                <>
+                  {p.title.slice(0, idx)}
+                  <mark className="bg-yellow-200 text-yellow-900 rounded-sm px-0.5 not-italic font-semibold">
+                    {p.title.slice(idx, idx + q.length)}
+                  </mark>
+                  {p.title.slice(idx + q.length)}
+                </>
+              );
+            })()
+          ) : p.title}
         </h3>
         {isOwner ? <OwnerBadge /> : <CollaboratorBadge />}
       </div>
@@ -119,7 +158,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-10">
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
         {/* Header row */}
         <div className="flex items-end justify-between">
           <div>
@@ -167,6 +206,61 @@ export default function Dashboard() {
           </Dialog>
         </div>
 
+        {/* Search + Filter bar */}
+        <div className="space-y-3">
+          <GlobalSearch roleFilter={roleFilter} ownershipFilter={ownershipFilter} />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="Filter projects by name…"
+              value={localSearch}
+              onChange={e => setLocalSearch(e.target.value)}
+              className="h-8 text-sm w-56"
+              data-testid="input-project-filter"
+            />
+
+            <Select value={ownershipFilter} onValueChange={setOwnershipFilter}>
+              <SelectTrigger className="h-8 text-sm w-36">
+                <SelectValue placeholder="Ownership" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All projects</SelectItem>
+                <SelectItem value="me">My projects</SelectItem>
+                <SelectItem value="shared">Shared with me</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="h-8 text-sm w-36">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All roles</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="collaborator">Collaborator</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-8 text-xs text-muted-foreground gap-1"
+              >
+                <X className="w-3 h-3" /> Clear
+              </Button>
+            )}
+
+            {hasFilters && !isLoading && (
+              <span className="text-xs text-muted-foreground ml-1">
+                {filteredProjects.length} result{filteredProjects.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Project list */}
         {isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map(i => (
@@ -182,9 +276,16 @@ export default function Dashboard() {
             <FlaskConical className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">No projects yet. Create your first one!</p>
           </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <FlaskConical className="w-8 h-8 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No projects match your filters.</p>
+            <button onClick={clearFilters} className="mt-2 text-xs text-primary hover:underline">
+              Clear filters
+            </button>
+          </div>
         ) : (
           <div className="space-y-8">
-            {/* Owned projects */}
             {ownedProjects.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-4">
@@ -198,7 +299,6 @@ export default function Dashboard() {
               </section>
             )}
 
-            {/* Shared / collaborated projects */}
             {sharedProjects.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-4">

@@ -1,0 +1,172 @@
+Add advanced search and filtering system to the ResearchHub platform.
+
+IMPORTANT:
+
+* keep implementation lightweight and stable
+* do NOT redesign existing UI
+* do NOT duplicate features if similar functionality already exists
+* if any search/filter already exists, extend and improve it instead of rebuilding
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Make the platform scalable by allowing users to:
+
+* search projects
+* search manuscripts
+* search datasets
+* search experiments
+* filter by collaborator
+* filter by role
+* filter by project ownership
+* perform keyword-based lookup
+
+Search should work:
+
+* after refresh
+* after logout/login
+* across persisted backend data
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BACKEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use FastAPI + SQLAlchemy.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SEARCH ENDPOINTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create or improve APIs:
+
+GET /search/projects?q=
+GET /search/manuscripts?q=
+GET /search/datasets?q=
+GET /search/experiments?q=
+
+Requirements:
+
+* partial keyword matching
+* case-insensitive search
+* safe SQL querying
+* user-scoped access control
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FILTERING SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Support query params:
+
+?role=owner
+?role=editor
+?collaborator=email
+?created_by=me
+
+Allow combining:
+?q=protein&role=editor
+
+━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE SEARCH LOGIC
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Search fields:
+
+Projects:
+
+* title
+* description
+
+Manuscripts:
+
+* abstract
+* introduction
+* methodology
+* results
+
+Datasets:
+
+* name
+* description
+
+Experiments:
+
+* title
+* notes
+
+━━━━━━━━━━━━━━━━━━━━━━━
+PERMISSIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ensure:
+
+* users only search accessible projects
+* viewers cannot access restricted results
+* collaborators only see allowed content
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FRONTEND IMPLEMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add lightweight search UI.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+GLOBAL SEARCH BAR
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Add:
+
+* top search bar
+* instant filtering
+* debounce search requests
+
+Search should:
+
+* update dynamically
+* not require page refresh
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FILTER PANELS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Add:
+
+* role dropdown
+* collaborator dropdown
+* ownership filter
+
+━━━━━━━━━━━━━━━━━━━━━━━
+SEARCH RESULTS UI
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Display:
+
+* matching project cards
+* matching manuscript sections
+* matching datasets
+* matching experiments
+
+Highlight:
+
+* matched keywords
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ERROR HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Prevent:
+
+* empty search crashes
+* undefined query failures
+* slow rendering
+* duplicate API calls
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FINAL REQUIREMENT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+If similar functionality already exists:
+
+* improve existing implementation
+* do NOT create duplicate search systems
+* maintain compatibility with current architecture

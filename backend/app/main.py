@@ -27,6 +27,7 @@ from .routes.reviews import router as reviews_router
 from .routes.reproducibility import router as reproducibility_router
 from .routes.ai_writing import router as ai_writing_router
 from .routes.file_manager import router as file_manager_router
+from .routes.search import router as search_router
 
 Base.metadata.create_all(bind=engine)
 run_migrations()
@@ -41,6 +42,7 @@ app.include_router(reviews_router)
 app.include_router(reproducibility_router)
 app.include_router(ai_writing_router)
 app.include_router(file_manager_router)
+app.include_router(search_router)
 
 app.add_middleware(
     CORSMiddleware,

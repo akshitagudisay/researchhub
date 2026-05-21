@@ -201,6 +201,53 @@ export interface LinkExperimentPayload {
   description?: string;
 }
 
+// ── Search ────────────────────────────────────────────────────────────────────
+
+export interface SearchProjectResult {
+  id: number;
+  title: string;
+  owner_id: number;
+  owner_email: string | null;
+  user_role: string;
+  created_at: string;
+  snippet: string | null;
+}
+
+export interface SearchManuscriptResult {
+  id: number;
+  project_id: number;
+  project_title: string | null;
+  matched_section: string | null;
+  snippet: string | null;
+  updated_at: string;
+}
+
+export interface SearchDatasetResult {
+  id: number;
+  name: string;
+  description: string | null;
+  file_name: string | null;
+  file_size: string | null;
+  has_file: boolean;
+  uploaded_by_email: string | null;
+  project_id: number;
+  project_title: string | null;
+  snippet: string | null;
+  created_at: string;
+}
+
+export interface SearchExperimentResult {
+  id: number;
+  name: string;
+  description: string | null;
+  notes: string | null;
+  has_attachment: boolean;
+  project_id: number;
+  project_title: string | null;
+  snippet: string | null;
+  created_at: string;
+}
+
 // ── AI Writing ────────────────────────────────────────────────────────────────
 
 export interface ApiAIWritingResponse {
@@ -503,6 +550,31 @@ export const api = {
     request<void>(`/reproducibility/link-dataset/${linkId}?project_id=${projectId}`, { method: "DELETE" }),
   deleteExperimentLink: (linkId: number, projectId: number) =>
     request<void>(`/reproducibility/link-experiment/${linkId}?project_id=${projectId}`, { method: "DELETE" }),
+
+  // ── Search ────────────────────────────────────────────────────────────────────
+  searchProjects: (params: { q?: string; role?: string; created_by?: string; collaborator?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.role) qs.set("role", params.role);
+    if (params.created_by) qs.set("created_by", params.created_by);
+    if (params.collaborator) qs.set("collaborator", params.collaborator);
+    return request<SearchProjectResult[]>(`/search/projects?${qs}`);
+  },
+  searchManuscripts: (q: string, projectId?: number) => {
+    const qs = new URLSearchParams({ q });
+    if (projectId) qs.set("project_id", String(projectId));
+    return request<SearchManuscriptResult[]>(`/search/manuscripts?${qs}`);
+  },
+  searchDatasets: (q: string, projectId?: number) => {
+    const qs = new URLSearchParams({ q });
+    if (projectId) qs.set("project_id", String(projectId));
+    return request<SearchDatasetResult[]>(`/search/datasets?${qs}`);
+  },
+  searchExperiments: (q: string, projectId?: number) => {
+    const qs = new URLSearchParams({ q });
+    if (projectId) qs.set("project_id", String(projectId));
+    return request<SearchExperimentResult[]>(`/search/experiments?${qs}`);
+  },
 
   // ── AI Writing ────────────────────────────────────────────────────────────────
   aiWriting: (action: "improve-writing" | "rewrite" | "clarity" | "grammar", text: string, projectId?: number) =>
