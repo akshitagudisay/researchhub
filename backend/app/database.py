@@ -1,11 +1,20 @@
+import os
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "sqlite:///./app.db"
+# Use DATABASE_URL env var in production (PostgreSQL on Neon/Supabase/Railway).
+# Falls back to local SQLite for development.
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./app.db")
 
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# Neon / Heroku ship "postgres://" URLs — SQLAlchemy needs "postgresql://"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+
+connect_args = {"check_same_thread": False} if IS_SQLITE else {}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -21,6 +30,11 @@ def get_db():
 
 
 def run_migrations():
+    # SQLite-only ALTER TABLE migrations.
+    # PostgreSQL uses create_all to build the schema fresh on first deploy.
+    if not IS_SQLITE:
+        return
+
     inspector = inspect(engine)
     with engine.connect() as conn:
         tables = inspector.get_table_names()
@@ -33,6 +47,12 @@ def run_migrations():
                 conn.execute(text("ALTER TABLE datasets ADD COLUMN stored_filename VARCHAR"))
             if "file_path" not in cols:
                 conn.execute(text("ALTER TABLE datasets ADD COLUMN file_path VARCHAR"))
+            if "ipfs_hash" not in cols:
+                conn.execute(text("ALTER TABLE datasets ADD COLUMN ipfs_hash VARCHAR"))
+            if "ipfs_uploaded_at" not in cols:
+                conn.execute(text("ALTER TABLE datasets ADD COLUMN ipfs_uploaded_at DATETIME"))
+            if "integrity_verified" not in cols:
+                conn.execute(text("ALTER TABLE datasets ADD COLUMN integrity_verified VARCHAR"))
 
         if "experiments" in tables:
             cols = {c["name"] for c in inspector.get_columns("experiments")}
@@ -51,17 +71,8 @@ def run_migrations():
             if "integrity_verified" not in cols:
                 conn.execute(text("ALTER TABLE experiments ADD COLUMN integrity_verified VARCHAR"))
 
-        if "datasets" in tables:
-            cols = {c["name"] for c in inspector.get_columns("datasets")}
-            if "ipfs_hash" not in cols:
-                conn.execute(text("ALTER TABLE datasets ADD COLUMN ipfs_hash VARCHAR"))
-            if "ipfs_uploaded_at" not in cols:
-                conn.execute(text("ALTER TABLE datasets ADD COLUMN ipfs_uploaded_at DATETIME"))
-            if "integrity_verified" not in cols:
-                conn.execute(text("ALTER TABLE datasets ADD COLUMN integrity_verified VARCHAR"))
-
-        # Fix comments.resolved stored as VARCHAR instead of INTEGER
-        # bool('0') == True in Python, so every comment appeared "Resolved"
+        # Fix comments.resolved stored as VARCHAR instead of INTEGER.
+        # bool('0') == True in Python, so every comment appeared "Resolved".
         if "comments" in tables:
             cols = {c["name"]: str(c["type"]).upper() for c in inspector.get_columns("comments")}
             if cols.get("resolved", "") in ("VARCHAR", "TEXT", "BOOLEAN", "NVARCHAR", "CHAR"):
